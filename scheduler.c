@@ -7,21 +7,22 @@ typedef struct process{
     int remainigTime,WaitingTime,whichCpu;
 } process;
 
-int main(int argc, char * argv[])
-{
-    int totalProcesses = atoi(argv[1]);
+process *PCB;
+int msgQueue_key_id, totalProcesses;
 
-    initClk();
-    printf("Scheduler started at t=%d\n", getClk());
+void Preemtive_HPF() {
 
-    process *PCB = (process *)malloc(sizeof(process) * (1+totalProcesses));// 1 indexed
+}
+
+void RoundRobin(int quantum) {
+
+}
+
+void CPU_2(int N, int M) {
+    
     process *readyQueue = (process *)malloc(sizeof(process) * (1+totalProcesses));
-
     int head = 0, tail = 0;
     int receivedCount = 0, finishedCount = 0;
-
-    key_t msgQueue_key = ftok("clk.c", 10);
-    int msgQueue_key_id = msgget(msgQueue_key, 0666 | IPC_CREAT);
     
     bool cpuBusy = false;
     pid_t runningPid = -1;
@@ -96,10 +97,32 @@ int main(int argc, char * argv[])
             }
         }
     }
+    free(readyQueue);
+}
+
+int main(int argc, char * argv[])
+{
+    totalProcesses = atoi(argv[1]);
+
+    initClk();
+    printf("Scheduler started at t=%d\n", getClk());
+
+    PCB = (process *)malloc(sizeof(process) * (1+totalProcesses));// 1 indexed
+
+    key_t msgQueue_key = ftok("clk.c", 10);
+    msgQueue_key_id = msgget(msgQueue_key, 0666 | IPC_CREAT);
+
+    int algNum = atoi(argv[2]);
+    switch(algNum) {
+        case 1:
+            Preemtive_HPF();
+        case 2:
+            RoundRobin(atoi(argv[3]));
+        case 3:
+            CPU_2(atoi(argv[4]), atoi(argv[5]));
+    }
 
     free(PCB);
-    
-    free(readyQueue);
     destroyClk(false);
     return 0;
 }
