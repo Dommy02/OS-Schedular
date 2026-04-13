@@ -59,9 +59,9 @@ int main(int argc, char * argv[])
     int schedularPid = fork();
     if(schedularPid == 0){
     
-    char algStr[10], rrStr[10];
-    sprintf(algStr, "%d", algNum);
-    sprintf(rrStr, "%d", rrSlot);
+        char algStr[10], rrStr[10];
+        sprintf(algStr, "%d", algNum);
+        sprintf(rrStr, "%d", rrSlot);
         char *sch_argv[] = {"./scheduler.out",algStr,rrStr, NULL};
         execv("./scheduler.out",sch_argv);
     }
