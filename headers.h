@@ -17,7 +17,20 @@ typedef short bool;
 
 #define SHKEY 300
 
+typedef struct {
+    int remainingTime;
+    bool busy,finished;
+} SharedData;
+void sem_wait(int semid) {
+    struct sembuf op = {0, -1, 0};
+    semop(semid, &op, 1);
+}
 
+// V (signal)
+void sem_signal(int semid) {
+    struct sembuf op = {0, +1, 0};
+    semop(semid, &op, 1);
+}
 ///==============================
 //don't mess with this variable//
 int * shmaddr;                 //
