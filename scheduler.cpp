@@ -103,7 +103,11 @@ void Preemtive_HPF() {
     int sem_id = semget(shm_key, 1, 0666 | IPC_CREAT);
     semctl(sem_id, 0, SETVAL, 1);
 
-    shared_data->remainingTime = 0;
+    key_t sync_key = ftok("clk.c", 55);
+    int sync_sem = semget(sync_key, 1, 0666 | IPC_CREAT);
+    semctl(sync_sem, 0, SETVAL, 1);
+
+    shared_data->remainingTime = -1;
     shared_data->finished = false;
     
     key_t sharedMemKey = ftok("clk.c", 90);
@@ -132,8 +136,11 @@ void Preemtive_HPF() {
         int current_time = getClk();
 
         if (runningProcess) {
+            sem_wait(sem_id);
+            sem_signal(sem_id);
             int status;
-            if (waitpid(runningProcess->pid, &status, WNOHANG) > 0) {
+            if (shared_data->remainingTime == 0) {
+                waitpid(runningProcess->pid, &status, 0);
                 runningProcess->remainigTime = 0;
                 writeLog(current_time, runningProcess, "finished");
 
@@ -147,15 +154,19 @@ void Preemtive_HPF() {
 
                 delete runningProcess;
                 runningProcess = NULL;
+                shared_data->remainingTime = -1;
                 finishedCount++;
                 lastTime = current_time;
             }
             else {
                 if (!readyQueue.empty() && readyQueue.top()->priority < runningProcess->priority) {
                     if (!didWait) {
-                        usleep(10000);
                         didWait = true;
-                        continue;
+                        kill(runningProcess->pid, SIGUSR1);
+                        sem_wait(sync_sem);
+                        sem_signal(sync_sem);
+                        if (shared_data->remainingTime == 0)
+                            continue;
                     }
                     else
                         didWait = false;
@@ -180,12 +191,13 @@ void Preemtive_HPF() {
             if (runningProcess->state == 'N') {
                 pid_t pid = fork();
                 if (pid == 0) {
-                    char idStr[16], remTimeStr[16], shmidStr[16], semidStr[16];
+                    char idStr[16], remTimeStr[16], shmidStr[16], semidStr[16], syncidStr[16];;
                     sprintf(idStr, "%d", runningProcess->id);
                     sprintf(remTimeStr, "%d", runningProcess->remainigTime);
                     sprintf(shmidStr, "%d", shmid);
                     sprintf(semidStr, "%d", sem_id);
-                    execl("./process.out", "./process.out", idStr, remTimeStr, shmidStr, semidStr, (char*)NULL);
+                    sprintf(syncidStr, "%d", sync_sem);
+                    execl("./process.out", "./process.out", idStr, remTimeStr, shmidStr, semidStr, syncidStr, (char*)NULL);
                     perror("exec failed");
                     exit(1);
                 }
