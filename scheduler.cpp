@@ -110,7 +110,8 @@ void Preemtive_HPF() {
     fprintf(f, "#At\ttime\tx\tprocess\ty\tstate\tarr\tw\ttotal\tz\tremain\ty\twait\tk\n");
     fclose(f);
 
-    bool isSwitching = false;
+    bool didWait = false;
+
     while (!(schedulerData->IamFinished) || finishedCount < totalProcesses) {
         process msg;
         while (msgrcv(msgQueue_key_id, &msg, sizeof(process) - sizeof(long), 0, IPC_NOWAIT) != -1) {
@@ -120,14 +121,6 @@ void Preemtive_HPF() {
         }
 
         int current_time = getClk();
-        // if (current_time == lastTime)
-        //     continue;
-        // lastTime = current_time;
-
-        // For Debugging
-        // if (current_time < 9 && finishedCount == 0 && readyQueue.empty()) {
-        //     printf("Scheduler heartbeat: current time %d, waiting for first process...\n", current_time);
-        // }
 
         if (runningProcess) {
             int status;
@@ -137,10 +130,17 @@ void Preemtive_HPF() {
                 delete runningProcess;
                 runningProcess = NULL;
                 finishedCount++;
+                lastTime = current_time;
             }
             else {
                 if (!readyQueue.empty() && readyQueue.top()->priority < runningProcess->priority) {
-                    usleep(10000);
+                    if (!didWait) {
+                        usleep(10000);
+                        didWait = true;
+                        continue;
+                    }
+                    else
+                        didWait = false;
                     kill(runningProcess->pid, SIGSTOP);
                     runningProcess->remainigTime = shared_data->remainingTime;
                     runningProcess->state = 'S';
@@ -371,7 +371,7 @@ void Cpu2(int n,int m,int numOfProcesses){
                     sprintf(sharedMem_id_cpu1_str, "%d", sharedMem_id_cpu1);
                     sprintf(CPU1_sem_id_str, "%d", CPU1_sem_id);
                     
-                    char* process_argv[] = {"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu1_str,CPU1_sem_id_str,NULL};
+                    char* process_argv[] = {(char*)"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu1_str,CPU1_sem_id_str,NULL};
                     execv("./process.out",process_argv);
                     _exit(0);
                 }
@@ -409,7 +409,7 @@ void Cpu2(int n,int m,int numOfProcesses){
                     sprintf(remainingTime_str, "%d", p.remainigTime);
                     sprintf(sharedMem_id_cpu2_str, "%d", sharedMem_id_cpu2);
                     sprintf(CPU2_sem_id_str, "%d", CPU2_sem_id);
-                    char* process_argv[] = {"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu2_str,CPU2_sem_id_str,NULL};
+                    char* process_argv[] = {(char*)"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu2_str,CPU2_sem_id_str,NULL};
                     execv("./process.out",process_argv);
                     _exit(0);
                 }
