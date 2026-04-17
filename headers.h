@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <math.h>
 
 typedef short bool;
 #define true 1
@@ -21,6 +22,13 @@ typedef struct {
     int remainingTime;
     bool busy,finished;
 } SharedData;
+
+typedef struct {
+    int NumSendingMess,sem_id;
+    bool IamFinished,IamSendingNow;
+} generator_scheduler;
+
+
 void sem_wait(int semid) {
     struct sembuf op = {0, -1, 0};
     semop(semid, &op, 1);

@@ -30,7 +30,7 @@ int countLines(const char *fileName)
 int main(int argc, char * argv[])
 {
     signal(SIGINT, clearResources);
-    // read input file
+
     int processesNum = countLines("processes.txt") - 1; // -1 due to the first line
     if (processesNum <= 0)
     {
@@ -68,7 +68,7 @@ int main(int argc, char * argv[])
     }
     fclose(fp);
 
-    // Ask the user for the chosen scheduling algorithm and its parameters if exist
+    // Ask the user for the chosen scheduling algorithm and its parameters
     int algNum = 0, rrSlot = 0, N = 0, M = 0;
     printf("Choose an algorithm: 1)HPF  2)RR   3)2-cpu FCFS: ");
     scanf("%d", &algNum);
@@ -91,7 +91,7 @@ int main(int argc, char * argv[])
         perror("execv clk.out failed");
         exit(1);
     }
-    // start the message queue between generator and scheduler
+
     int process_index = 0;
     key_t msgQueue_key = ftok("clk.c", 10);
     int msgQueue_id = msgget(msgQueue_key, 0666 | IPC_CREAT);
@@ -112,41 +112,65 @@ int main(int argc, char * argv[])
         exit(1);
     }
 
-    // start scheduler
+    // Data sync for scheduler
+    key_t sharedMemKey = ftok("clk.c", 90);
+    int sendingData = shmget(sharedMemKey, sizeof(generator_scheduler), 0666 | IPC_CREAT);
+    generator_scheduler *schedulerData = (generator_scheduler*) shmat(sendingData, NULL, 0);
+    int generator_sem = semget(sharedMemKey, 1, 0666 | IPC_CREAT);
+    semctl(generator_sem, 0, SETVAL, 1);
+
+    schedulerData->IamFinished = false;
+    schedulerData->IamSendingNow = false;
+    schedulerData->NumSendingMess = 0;
+    schedulerData->sem_id = generator_sem;
     int schedulerPid = fork();
     if (schedulerPid == 0)
     {
-        char processNumStr[16], algStr[16], rrStr[16], Nstr[16],Mstr[16];
+        char processNumStr[16], algStr[16], rrStr[16], Nstr[16],Mstr[16],SharedMem_str[16];
         sprintf(processNumStr, "%d", processesNum);
         sprintf(algStr, "%d", algNum);
         sprintf(rrStr, "%d", rrSlot);
         sprintf(Nstr, "%d", N);
         sprintf(Mstr, "%d", M);
+        sprintf(SharedMem_str, "%d", sendingData);
 
-        char *sch_argv[] = {"./scheduler.out", processNumStr, algStr, rrStr,Nstr,Mstr, NULL};
+        char *sch_argv[] = {"./scheduler.out", processNumStr, algStr, rrStr,Nstr,Mstr,SharedMem_str,NULL};
         execv("./scheduler.out", sch_argv);
         perror("execv scheduler.out failed");
         exit(1);
     }
-    // start to pass the processes when it's arrival time come
+    
     initClk();
 
     while (process_index < processesNum)
     {
+        sem_wait(generator_sem);
+        schedulerData->IamSendingNow = false;
+        sem_signal(generator_sem);
         int now = getClk();
         while (process_index < processesNum && arr[process_index].arrival <= now)
         {
-            if (msgsnd(msgQueue_id, &arr[process_index], sizeof(process) - sizeof(long), 0) != -1)
+            sem_wait(generator_sem);
+            schedulerData->IamSendingNow = true;
+            sem_signal(generator_sem);
+            if (msgsnd(msgQueue_id, &arr[process_index], sizeof(process) - sizeof(long), !IPC_NOWAIT) != -1)
             {
                 process_index++;
             }
         }
     }
+    sem_wait(generator_sem);
+    schedulerData->IamSendingNow = false;
+    schedulerData->IamFinished = true;
+    sem_signal(generator_sem);
 
     free(arr);
-    waitpid(schedulerPid, NULL, 0);
-    destroyClk(true);
-    return 0;
+    int stat;
+    wait(&stat);
+    if (!(stat& 0x00FF))
+        printf("Scheduler id : %d, finished %d \n",schedulerPid,stat >> 8);
+    clearResources(1);
+    exit(0);
 }
 
 void clearResources(int signum)
