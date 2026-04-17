@@ -175,5 +175,6 @@ int main(int argc, char * argv[])
 
 void clearResources(int signum)
 {
+    signal(SIGINT, SIG_DFL);
     destroyClk(true);
 }

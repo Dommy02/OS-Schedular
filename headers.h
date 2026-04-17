@@ -12,9 +12,11 @@
 #include <signal.h>
 #include <math.h>
 
+#ifndef __cplusplus
 typedef short bool;
 #define true 1
 #define false 0
+#endif
 
 #define SHKEY 300
 

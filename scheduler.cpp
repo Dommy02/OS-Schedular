@@ -1,18 +1,21 @@
 #include "headers.h"
+#include <vector>
+#include <queue>
+#include <cstring>
+using namespace std;
 
 typedef struct process{
     long mtype;
     int id,arrival,runTime,priority;
     char state;
     int remainigTime,WaitingTime,whichCpu;
+    pid_t pid;
 } process;
 
 process *PCB;
-int msgQueue_key_id, totalProcesses;
+int msgQueue_key_id, totalProcesses = 0;
 
-void Preemtive_HPF() {
-
-}
+void Preemtive_HPF();
 
 void RoundRobin(int quantum) {
 
@@ -22,10 +25,10 @@ void Cpu2(int n,int m,int numOfProcesses);
 
 int main(int argc, char * argv[])
 {
-    totalProcesses = atoi(argv[1]);
-    /*     Make these lines in each algoritm because we don't use the same structure for NO REASON!!!!!!!
     initClk();
     printf("Scheduler started at t=%d\n", getClk());
+    //totalProcesses = atoi(argv[1]);
+    /*     Make these lines in each algoritm because we don't use the same structure for NO REASON!!!!!!!
     PCB = (process *)malloc(sizeof(process) * (1+totalProcesses));// 1 indexed
     msgQueue_key_id = msgget(msgQueue_key, 0666 | IPC_CREAT);
     key_t msgQueue_key = ftok("clk.c", 10);
@@ -37,21 +40,152 @@ int main(int argc, char * argv[])
     int algNum = atoi(argv[2]);
     switch(algNum) {
         case 1:
-        Preemtive_HPF();
-        break;
+            Preemtive_HPF();
+            break;
         case 2:
-        RoundRobin(atoi(argv[3]));
-        break;
+            RoundRobin(atoi(argv[3]));
+            break;
         case 3:
-        int N = atoi(argv[4]);
-        int M = atoi(argv[5]);
-        int totalProcesses = atoi(argv[1]);
-        Cpu2(N,M,totalProcesses)
-        break;
+            int N = atoi(argv[4]);
+            int M = atoi(argv[5]);
+            int totalProcesses = atoi(argv[1]);
+            Cpu2(N,M,totalProcesses);
+            break;
     }
     
     destroyClk(false);
     return 0;
+}
+
+void writeLog(int currentTime, process* p, const char* state) {
+    FILE* logFile = fopen("scheduler.log", "a");
+    if (logFile == NULL)
+        return;
+    int timeSpentRunning = p->runTime - p->remainigTime;
+    int wait = currentTime - p->arrival - timeSpentRunning;
+
+    fprintf(logFile, "At\ttime\t%d\tprocess\t%d\t%s\tarr\t%d\ttotal\t%d\tremain\t%d\twait\t%d", 
+            currentTime, p->id, state, p->arrival, p->runTime, p->remainigTime, wait);
+
+    if (strcmp(state, "finished") == 0) {
+        int TA = currentTime - p->arrival;
+        double WTA = (double)TA / p->runTime;
+        fprintf(logFile, "\tTA\t%d\tWTA\t%.2f", TA, WTA);
+    }
+
+    fprintf(logFile, "\n");
+    fclose(logFile);
+}
+
+struct ComparePriority {
+    bool operator()(const process* p1, const process* p2) {
+        return p1->priority > p2->priority;
+    }
+};
+
+void Preemtive_HPF() {
+    process* runningProcess = NULL;
+    int finishedCount = 0;
+    int lastTime = -1;
+    totalProcesses = 0;
+    priority_queue<process*, vector<process*>, ComparePriority> readyQueue;
+
+    key_t msgQueue_key = ftok("clk.c", 10);
+    msgQueue_key_id = msgget(msgQueue_key, 0666 | IPC_CREAT);
+    
+    key_t shm_key = ftok("clk.c", 20);
+    int shmid = shmget(shm_key, sizeof(SharedData), 0666 | IPC_CREAT);
+    SharedData* shared_data = (SharedData*) shmat(shmid, NULL, 0);
+    int sem_id = semget(shm_key, 1, 0666 | IPC_CREAT);
+    semctl(sem_id, 0, SETVAL, 1);
+
+    shared_data->remainingTime = 0;
+    shared_data->finished = false;
+    
+    key_t sharedMemKey = ftok("clk.c", 90);
+    int sendingData = shmget(sharedMemKey, sizeof(generator_scheduler), 0666 | IPC_CREAT);
+    generator_scheduler *schedulerData = (generator_scheduler*) shmat(sendingData, NULL, 0);
+
+    FILE *f = fopen("scheduler.log", "w");
+    fprintf(f, "#At\ttime\tx\tprocess\ty\tstate\tarr\tw\ttotal\tz\tremain\ty\twait\tk\n");
+    fclose(f);
+
+    bool isSwitching = false;
+    while (!(schedulerData->IamFinished) || finishedCount < totalProcesses) {
+        process msg;
+        while (msgrcv(msgQueue_key_id, &msg, sizeof(process) - sizeof(long), 0, IPC_NOWAIT) != -1) {
+            msg.state = 'N';
+            readyQueue.push(new process(msg));
+            totalProcesses++;
+        }
+
+        int current_time = getClk();
+        // if (current_time == lastTime)
+        //     continue;
+        // lastTime = current_time;
+
+        // For Debugging
+        // if (current_time < 9 && finishedCount == 0 && readyQueue.empty()) {
+        //     printf("Scheduler heartbeat: current time %d, waiting for first process...\n", current_time);
+        // }
+
+        if (runningProcess) {
+            int status;
+            if (waitpid(runningProcess->pid, &status, WNOHANG) > 0) {
+                runningProcess->remainigTime = 0;
+                writeLog(current_time, runningProcess, "finished");
+                delete runningProcess;
+                runningProcess = NULL;
+                finishedCount++;
+            }
+            else {
+                if (!readyQueue.empty() && readyQueue.top()->priority < runningProcess->priority) {
+                    usleep(10000);
+                    kill(runningProcess->pid, SIGSTOP);
+                    runningProcess->remainigTime = shared_data->remainingTime;
+                    runningProcess->state = 'S';
+                    writeLog(current_time, runningProcess, "stopped");
+                    readyQueue.push(runningProcess);
+                    runningProcess = NULL;
+                    semctl(sem_id, 0, SETVAL, 1);
+                    lastTime = current_time;
+                }
+            }
+        }
+
+        if (lastTime == current_time)
+            continue;
+
+        if (!runningProcess && !readyQueue.empty()) {
+            runningProcess = readyQueue.top();
+            readyQueue.pop();
+            if (runningProcess->state == 'N') {
+                pid_t pid = fork();
+                if (pid == 0) {
+                    char idStr[16], remTimeStr[16], shmidStr[16], semidStr[16];
+                    sprintf(idStr, "%d", runningProcess->id);
+                    sprintf(remTimeStr, "%d", runningProcess->remainigTime);
+                    sprintf(shmidStr, "%d", shmid);
+                    sprintf(semidStr, "%d", sem_id);
+                    execl("./process.out", "./process.out", idStr, remTimeStr, shmidStr, semidStr, (char*)NULL);
+                    perror("exec failed");
+                    exit(1);
+                }
+                runningProcess->pid = pid;
+                runningProcess->state = 'R';
+                writeLog(current_time, runningProcess, "started");    
+            } 
+            else if (runningProcess->state == 'S') {
+                kill(runningProcess->pid, SIGCONT);
+                runningProcess->state = 'R';
+                writeLog(current_time, runningProcess, "resumed");    
+            }
+        }
+    }
+
+    printf("HPF Scheduler finished all processes at t=%d\n", getClk());
+    shmdt(shared_data);
+    shmdt(schedulerData);
 }
 
 void Cpu2(int n,int m,int numOfProcesses){

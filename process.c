@@ -1,11 +1,22 @@
 #include "headers.h"
 
+int now;
+bool isInterrupted = false;
+void interrupting() {
+    isInterrupted = true;
+}
 
+void continuing() {
+    isInterrupted = false;
+    now = getClk();
+}
 
 int main(int argc, char * argv[])
 {
+    signal(SIGSTOP, interrupting);
+    signal(SIGCONT, continuing);
     initClk();
-    int now           = getClk();
+    now = getClk();
     int remainingTime = atoi(argv[2]);
 
     // shared Mem
@@ -17,6 +28,8 @@ int main(int argc, char * argv[])
 
     while (remainingTime != 0)
     {
+        if(isInterrupted)
+            pause();
         if (now != getClk())
         {
             now = getClk();
@@ -25,6 +38,7 @@ int main(int argc, char * argv[])
             data->remainingTime = remainingTime;
             sem_signal(sem_id);
             printf("P%s @ time: %d has remaining time: %d\n", argv[1], now, remainingTime);
+            fflush(stdout);
         }
     }
 
