@@ -562,7 +562,7 @@ void Cpu2(int n,int m,int sharedMem_key){
                     sprintf(sharedMem_id_cpu1_str, "%d", sharedMem_id_cpu1);
                     sprintf(CPU1_sem_id_str, "%d", CPU1_sem_id);
                     
-                    char* process_argv[] = {"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu1_str,CPU1_sem_id_str,NULL};
+                    char* process_argv[] = {(char*)"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu1_str,CPU1_sem_id_str,NULL};
                     execv("./process.out",process_argv);
                     _exit(0);
                 }
@@ -607,7 +607,7 @@ void Cpu2(int n,int m,int sharedMem_key){
                     sprintf(remainingTime_str, "%d", p2->curr->remainigTime);
                     sprintf(sharedMem_id_cpu2_str, "%d", sharedMem_id_cpu2);
                     sprintf(CPU2_sem_id_str, "%d", CPU2_sem_id);
-                    char* process_argv[] = {"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu2_str,CPU2_sem_id_str,NULL};
+                    char* process_argv[] = {(char*)"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu2_str,CPU2_sem_id_str,NULL};
                     execv("./process.out",process_argv);
                     _exit(0);
                 }
