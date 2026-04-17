@@ -112,6 +112,11 @@ void Preemtive_HPF() {
 
     bool didWait = false;
 
+    int total_execution_time = 0;
+    int total_waiting_time = 0;
+    double total_WTA = 0.0;
+    vector<double> WTAs_list;
+
     while (!(schedulerData->IamFinished) || finishedCount < totalProcesses) {
         process msg;
         while (msgrcv(msgQueue_key_id, &msg, sizeof(process) - sizeof(long), 0, IPC_NOWAIT) != -1) {
@@ -127,6 +132,15 @@ void Preemtive_HPF() {
             if (waitpid(runningProcess->pid, &status, WNOHANG) > 0) {
                 runningProcess->remainigTime = 0;
                 writeLog(current_time, runningProcess, "finished");
+
+                int TA = current_time - runningProcess->arrival;
+                double WTA = (double)TA / runningProcess->runTime;
+                int wait = TA - runningProcess->runTime;
+                total_execution_time += runningProcess->runTime;
+                total_waiting_time += wait;
+                total_WTA += WTA;
+                WTAs_list.push_back(WTA);
+
                 delete runningProcess;
                 runningProcess = NULL;
                 finishedCount++;
@@ -184,6 +198,27 @@ void Preemtive_HPF() {
     }
 
     printf("HPF Scheduler finished all processes at t=%d\n", getClk());
+
+    int finish_time = getClk();
+    double cpu_utilization = ((double)total_execution_time / finish_time) * 100.0;
+    double avg_WTA = total_WTA / finishedCount;
+    double avg_Waiting = (double)total_waiting_time / finishedCount;
+    
+    double sum_squared_diff = 0.0;
+    for (double wta : WTAs_list) {
+        sum_squared_diff += (wta - avg_WTA) * (wta - avg_WTA);
+    }
+    double std_WTA = sqrt(sum_squared_diff / finishedCount);
+    
+    FILE *perfFile = fopen("scheduler.perf", "w");
+    if (perfFile != NULL) {
+        fprintf(perfFile, "CPU utilization = %.2f%%\n", cpu_utilization);
+        fprintf(perfFile, "Avg WTA = %.2f\n", avg_WTA);
+        fprintf(perfFile, "Avg Waiting = %.2f\n", avg_Waiting);
+        fprintf(perfFile, "Std WTA = %.2f\n", std_WTA);
+        fclose(perfFile);
+    }
+
     shmdt(shared_data);
     shmdt(schedulerData);
 }
