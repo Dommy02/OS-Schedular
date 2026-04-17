@@ -79,7 +79,11 @@ void writeLog(int currentTime, process* p, const char* state) {
 
 struct ComparePriority {
     bool operator()(const process* p1, const process* p2) {
-        return p1->priority > p2->priority;
+        if (p1->priority != p2->priority)
+            return p1->priority > p2->priority;
+        if (p1->arrival != p2->arrival)
+            return p1->arrival > p2->arrival;
+        return p1->id > p2->id;
     }
 };
 
