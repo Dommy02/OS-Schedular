@@ -12,6 +12,16 @@ typedef struct process{
     pid_t pid;
 } process;
 
+typedef struct node{
+    process *curr;
+    struct node *next;
+} node;
+
+typedef struct WTA_node{
+    float curr;
+    struct WTA_node *next;
+} WTA_node;
+
 process *PCB;
 int msgQueue_key_id, totalProcesses = 0;
 
@@ -48,8 +58,8 @@ int main(int argc, char * argv[])
         case 3:
             int N = atoi(argv[4]);
             int M = atoi(argv[5]);
-            int totalProcesses = atoi(argv[1]);
-            Cpu2(N,M,totalProcesses);
+            //int totalProcesses = atoi(argv[1]);
+            Cpu2(N,M,atoi(argv[6]));
             break;
     }
     
@@ -227,27 +237,32 @@ void Preemtive_HPF() {
     shmdt(schedulerData);
 }
 
-void Cpu2(int n,int m,int numOfProcesses){
+void Cpu2(int n,int m,int sharedMem_key){
     int N = n;
     int M = m;
     bool stoped = false;
-    int totalProcesses = numOfProcesses;
-
+    int totalProcesses = 0;
+    int waitingTime = 0;
     initClk();
     int now = getClk();
     
     printf("Scheduler started at t=%d\n", now);
 
     // Main queue that stores all received processes in arrival order.
-    process *allProcesses = (process *)malloc(sizeof(process) * totalProcesses);
+    node* Head_CPU1 = NULL,*Tail_CPU1 = NULL;
+    node* Head_CPU2 = NULL,*Tail_CPU2 = NULL;
+    node *p1 = NULL, *p2 = NULL;
+    WTA_node* WTA_head1 = NULL,*WTA_head2 = NULL;
+    WTA_node* WTA_tail1 = NULL,*WTA_tail2 = NULL;
+    int Queue1_load = 0 , Queue2_load = 0;
+    int numProcessesEntered_CPU1 = 0 , numProcessesEntered_CPU2 = 0;
+    int allRunningTime1 = 0, allRunningTime2 = 0;
+    float all_WTA1 = 0, all_WTA2 = 0;
+    int all_Waiting1 = 0, all_Waiting2 = 0;
+    int endTime1 = 0 , endTime2 = 0;
+    
+    int numAllProcesses = 0;
 
-    // Two CPU queues store indices into allProcesses.
-    int *cpu1IdxQ = (int *)malloc(sizeof(int) * totalProcesses);
-    int *cpu2IdxQ = (int *)malloc(sizeof(int) * totalProcesses);
-
-    int globalTail = 0;
-    int head_cpu1 = 0, tail_cpu1 = 0;
-    int head_cpu2 = 0, tail_cpu2 = 0;
     int receivedCount = 0, finishedCount = 0;
     bool switch1 = false, switch2 = false;
     int TimeToBaclFromSwitch_cpu1 = 0,TimeToBaclFromSwitch_cpu2 = 0;
@@ -261,7 +276,9 @@ void Cpu2(int n,int m,int numOfProcesses){
     int runningId1 = -1,runningId2 = -1;
     pid_t runningPid1 = -1;
     pid_t runningPid2 = -1;
-
+    // shared Memory between Scheduler and process generator
+    generator_scheduler *schedulerData = (generator_scheduler*) shmat(sharedMem_key, NULL, 0);//
+    int sem_id = schedulerData->sem_id;
     // shared Memory between process and Scheduler
     key_t sharedMem_key_cpu1 = ftok("clk.c", 20);
     key_t sharedMem_key_cpu2 = ftok("clk.c", 30);
@@ -277,150 +294,279 @@ void Cpu2(int n,int m,int numOfProcesses){
 
     int CPU1_sem_id = semget(sharedMem_key_cpu1, 1, 0666 | IPC_CREAT);
     int CPU2_sem_id = semget(sharedMem_key_cpu2, 1, 0666 | IPC_CREAT);
-    semctl(CPU1_sem_id, 0, SETVAL, 0);
-    semctl(CPU2_sem_id, 0, SETVAL, 0);
+    semctl(CPU1_sem_id, 0, SETVAL, 1);
+    semctl(CPU2_sem_id, 0, SETVAL, 1);
 
-    int checking_time = now + N;
+    int checking_time = 0 + N;
     printf("checkin Time = %d\n",checking_time);
-    while (finishedCount < totalProcesses)
+    int returnFromSteal = checking_time + M + 1;
+    printf("return from steal Time = %d\n",returnFromSteal);
+    
+    // to get the size of generator - scheduler queue
+    struct msqid_ds buf;
+    while (!schedulerData->IamFinished || finishedCount != totalProcesses)
     {
         // Receive all currently available processes from bus
-        process messageBuff;
-        while (msgrcv(msgQueue_key_id, &messageBuff, sizeof(process) - sizeof(long), 1, IPC_NOWAIT) != -1)
-        {
-            if (true)
-            {    
-                if (globalTail < totalProcesses)
-                {
-                    int newProcessIndex = globalTail;
-                    allProcesses[globalTail++] = messageBuff;
-
-                    int cpu1Load = tail_cpu1 - head_cpu1;
-                    int cpu2Load = tail_cpu2 - head_cpu2;
-
-                    // Least-loaded queue policy; tie goes to CPU #1.
-                    if (cpu1Load <= cpu2Load)
-                    {
-                        cpu1IdxQ[tail_cpu1++] = newProcessIndex;
-                        allProcesses[newProcessIndex].whichCpu = 1;
-                    }
-                    else
-                    {
-                        cpu2IdxQ[tail_cpu2++] = newProcessIndex;
-                        allProcesses[newProcessIndex].whichCpu = 2;
-                    }
-
-                    printf("Enqueued P%d at t=%d (runtime=%d) in CPU number %d\n",allProcesses[newProcessIndex].id,getClk(),allProcesses[newProcessIndex].runTime,allProcesses[newProcessIndex].whichCpu);
-                }
+        sem_wait(schedulerData->sem_id);
+        bool sendingNow = schedulerData->IamSendingNow;
+        sem_signal(schedulerData->sem_id);
+        msgctl(msgQueue_key_id, IPC_STAT, &buf);
+        while (sendingNow == true || buf.msg_qnum != 0 ) {    
+                process messageBuff;
+                msgrcv(msgQueue_key_id, &messageBuff, sizeof(process) - sizeof(long), 0, !IPC_NOWAIT);
                 receivedCount++;
-            }
-        }
-        // check for stealing
-        now = getClk();
-        if(checking_time == now){
-            printf("now is T%d and checking time = T%d and state is %d\n",now,checking_time,stoped);
-            checking_time = now+N;
-            if(stoped == false)
-            {    int remainingTime1 = 0, remainingTime2 = 0;
-                remainingTime1 += CPU1_data->remainingTime;
-                printf("remaining in cpu1 = %d\n",remainingTime1);
-                remainingTime2 += CPU2_data->remainingTime;
-                printf("remaining in cpu2 = %d\n",remainingTime2);
-                int head1_cpy = head_cpu1;
-                int head2_cpy = head_cpu2;
-                while(head1_cpy != tail_cpu1){
-                    remainingTime1 += allProcesses[cpu1IdxQ[head1_cpy++]].remainigTime;
-                    printf("remaining1 is = %d\n",remainingTime1);
-                }
-                
-                while(head2_cpy != tail_cpu2){
-                    remainingTime2 += allProcesses[cpu2IdxQ[head2_cpy++]].remainigTime;
-                    printf("remaining2 is = %d\n",remainingTime2);
-                }
-                
-                printf("M = %d and diff = %d\n",M,abs(remainingTime2 - remainingTime1));
-                if(abs(remainingTime2 - remainingTime1) > M){
-                            
-                    //stealing
-                    if(remainingTime2 < remainingTime1){
-                        if(tail_cpu1 != head_cpu1){
-                            if(runningPid1 != -1)
-                                kill(runningPid1, SIGSTOP);
-                            if(runningPid2 != -1)
-                                kill(runningPid2, SIGSTOP);
-                            //
-                            int stealed = cpu1IdxQ[--tail_cpu1];
-                            cpu2IdxQ[tail_cpu2++] = stealed;
-                            allProcesses[cpu2IdxQ[tail_cpu2-1 ]].whichCpu = 2; 
-                            stoped = true;
-                            printf("P%d is stealed to cpu%d and state now is %d\n",allProcesses[cpu2IdxQ[tail_cpu2-1 ]].id,allProcesses[cpu2IdxQ[tail_cpu2-1 ]].whichCpu,stoped);
-                            //file things
-                            FILE *fp = fopen("scheduler_1.log", "a");
-                            fprintf(fp, "At\ttime\t%d\tprocess\t%d\twas\tstolen\n",getClk(),allProcesses[cpu2IdxQ[tail_cpu2-1 ]].id);
-                            fclose(fp);
-                            //
-                        }
+                totalProcesses++;
+                // to renew after receive
+                msgctl(msgQueue_key_id, IPC_STAT, &buf);
+                sem_wait(schedulerData->sem_id);
+                sendingNow = schedulerData->IamSendingNow;
+                sem_signal(schedulerData->sem_id);
+                //enqueue in ready queues
+                if(Queue1_load <= Queue2_load){
+                    if(Queue1_load == 0){
+                        Head_CPU1 = (node*)malloc(sizeof(node));
+                        Tail_CPU1 = Head_CPU1;
+                        Tail_CPU1->next = NULL;
+                        Tail_CPU1->curr = (process*)malloc(sizeof(process));
+                        Tail_CPU1->curr->id = messageBuff.id;
+                        Tail_CPU1->curr->remainigTime = messageBuff.remainigTime;
+                        Tail_CPU1->curr->runTime = messageBuff.runTime;
+                        Tail_CPU1->curr->arrival = messageBuff.arrival;
+                        Tail_CPU1->curr->whichCpu = 1;
                     }
                     else{
-                        if(tail_cpu2 != head_cpu2){
-                            if(runningPid1 != -1)
-                                kill(runningPid1, SIGSTOP);
-                            if(runningPid2 != -1)
-                                kill(runningPid2, SIGSTOP);
-                            //
-                            int stealed = cpu2IdxQ[--tail_cpu2];
-                            cpu1IdxQ[tail_cpu1++] = stealed;
-                            allProcesses[cpu1IdxQ[tail_cpu1-1 ]].whichCpu = 1; 
-                            printf("P%d is stealed to cpu%d and state is %d\n",allProcesses[cpu1IdxQ[tail_cpu1-1 ]].id,allProcesses[cpu1IdxQ[tail_cpu1-1 ]].whichCpu,stoped);
-                            //file things
-                            FILE *fp = fopen("scheduler_2.log", "a");
-                            fprintf(fp, "At\ttime\t%d\tprocess\t%d\twas\tstolen\n",getClk(),allProcesses[cpu1IdxQ[tail_cpu1-1 ]].id);
-                            fclose(fp);
-                            //
+                        Tail_CPU1->next = (node*)malloc(sizeof(node));
+                        Tail_CPU1 = Tail_CPU1->next;
+                        Tail_CPU1->next = NULL;
+                        Tail_CPU1->curr = (process*)malloc(sizeof(process));
+                        Tail_CPU1->curr->id = messageBuff.id;
+                        Tail_CPU1->curr->remainigTime = messageBuff.remainigTime;
+                        Tail_CPU1->curr->runTime = messageBuff.runTime;
+                        Tail_CPU1->curr->arrival = messageBuff.arrival;
+                        Tail_CPU1->curr->whichCpu = 1;
+                    }
+                    Queue1_load++;
+                    numProcessesEntered_CPU1++;
+                }
+                else{
+                    if(Queue2_load == 0){
+                        Head_CPU2 = (node*)malloc(sizeof(node));
+                        Tail_CPU2 = Head_CPU2;
+                        Tail_CPU2->next = NULL;
+                        Tail_CPU2->curr = (process*)malloc(sizeof(process));
+                        Tail_CPU2->curr->id = messageBuff.id;
+                        Tail_CPU2->curr->remainigTime = messageBuff.remainigTime;
+                        Tail_CPU2->curr->runTime = messageBuff.runTime;
+                        Tail_CPU2->curr->arrival = messageBuff.arrival;
+                        Tail_CPU2->curr->whichCpu = 2;
+                    }
+                    else{
+                        Tail_CPU2->next = (node*)malloc(sizeof(node));
+                        Tail_CPU2 = Tail_CPU2->next;
+                        Tail_CPU2->next = NULL;
+                        Tail_CPU2->curr = (process*)malloc(sizeof(process));
+                        Tail_CPU2->curr->id = messageBuff.id;
+                        Tail_CPU2->curr->remainigTime = messageBuff.remainigTime;
+                        Tail_CPU2->curr->runTime = messageBuff.runTime;
+                        Tail_CPU2->curr->arrival = messageBuff.arrival;
+                        Tail_CPU2->curr->whichCpu = 2;
+                    }
+                    Queue2_load++;  
+                    numProcessesEntered_CPU2++; 
+            }
+        }
+
+        // check for stealing
+        if(!(!cpuBusy1 && Queue1_load != 0) && !(!cpuBusy2 && Queue2_load != 0)){
+            now = getClk();
+            sem_wait(schedulerData->sem_id);
+            sendingNow = schedulerData->IamSendingNow;
+            sem_signal(schedulerData->sem_id);
+            struct msqid_ds buf1;
+            msgctl(msgQueue_key_id, IPC_STAT, &buf1);
+            if(checking_time == now && sendingNow == false && buf1.msg_qnum == 0 ){
+                printf("now is T%d and checking time = T%d and state is %d\n",now,checking_time,stoped);
+                checking_time = now+N;
+                if(stoped == false)
+                {    int remainingTime1 = 0, remainingTime2 = 0;
+                    sem_wait(CPU1_sem_id);
+                    remainingTime1 += CPU1_data->remainingTime;
+                    sem_signal(CPU1_sem_id);
+                    printf("remaining in cpu1 = %d\n",remainingTime1);
+                    sem_wait(CPU2_sem_id);
+                    remainingTime2 += CPU2_data->remainingTime;
+                    sem_signal(CPU2_sem_id);
+                    printf("remaining in cpu2 = %d\n",remainingTime2);
+                    node* head1_cpy = Head_CPU1;
+                    node* head2_cpy = Head_CPU2;
+                    while(head1_cpy != NULL){
+                        remainingTime1 += head1_cpy->curr->remainigTime;
+                        printf("remaining1 is = %d, P%d\n",remainingTime1,head1_cpy->curr->id);
+                        head1_cpy = head1_cpy->next;
+                    }
+                    
+                    while(head2_cpy != NULL){
+                        remainingTime2 += head2_cpy->curr->remainigTime;
+                        printf("remaining2 is = %d, P%d\n",remainingTime2,head2_cpy->curr->id);
+                        head2_cpy = head2_cpy->next;
+                    }
+                    
+                    printf("M = %d and diff = %d\n",M,abs(remainingTime2 - remainingTime1));
+                    if(abs(remainingTime2 - remainingTime1) > M){
+                        //stealing
+                        returnFromSteal = getClk() + M + 1;
+                        if(remainingTime2 < remainingTime1){
+                            if(Queue1_load != 0){
+                                if(runningPid1 != -1)
+                                    kill(runningPid1, SIGSTOP);
+                                if(runningPid2 != -1)
+                                    kill(runningPid2, SIGSTOP);
+                                //
+                                node* newTail = Head_CPU1;
+                                if(Queue1_load == 1)
+                                    newTail = NULL;// for one node in queue
+                                else{
+                                    while(newTail && newTail->next != Tail_CPU1)
+                                        newTail = newTail->next;
+                                }
+                                // pass the node to queue 2
+                                if(Queue2_load == 0){
+                                    Tail_CPU2 = Tail_CPU1;
+                                    Head_CPU2 = Tail_CPU2;
+                                    Tail_CPU2->next = NULL;
+                                }
+                                else{
+                                    Tail_CPU2->next = Tail_CPU1;
+                                    Tail_CPU2 = Tail_CPU2->next;
+                                    Tail_CPU2->next = NULL;
+                                }
+                                Tail_CPU2->curr->whichCpu = 2;
+                                // handling the new tail cpu 1
+                                Tail_CPU1 = newTail;
+                                Queue1_load--;
+                                Queue2_load++;
+                                if(Queue1_load != 0)
+                                    Tail_CPU1->next = NULL;
+                                else{
+                                    Tail_CPU1 = Head_CPU1 = NULL;
+                                }
+                                numProcessesEntered_CPU1--;
+                                numProcessesEntered_CPU2++;
+                                stoped = true;
+                                printf("P%d is stealed to cpu%d and state now is %d\n",Tail_CPU2->curr->id,Tail_CPU2->curr->whichCpu,stoped);
+                                if(p1 != NULL)
+                                    p1->curr->WaitingTime +=3;
+                                if(p2 != NULL)
+                                    p2->curr->WaitingTime +=3;
+                                //file things
+                                FILE *fp = fopen("scheduler_1.log", "a");
+                                fprintf(fp, "At\ttime\t%d\tprocess\t%d\twas\tstolen\n",getClk(),Tail_CPU2->curr->id);
+                                fclose(fp);
+                                //
+                            }
+                        }
+                        else{
+                            if(Queue2_load != 0){
+                                if(runningPid1 != -1)
+                                    kill(runningPid1, SIGSTOP);
+                                if(runningPid2 != -1)
+                                    kill(runningPid2, SIGSTOP);
+                                //
+                                node* newTail = Head_CPU2;
+                                if(Queue2_load == 1)
+                                    newTail = NULL;// for one node in queue
+                                else{
+                                    while(newTail && newTail->next != Tail_CPU2)
+                                        newTail = newTail->next;
+                                }
+                                // pass the node to queue 1
+                                if(Queue1_load == 0){
+                                    Tail_CPU1 = Tail_CPU2;
+                                    Head_CPU1 = Tail_CPU1;
+                                    Tail_CPU1->next = NULL;
+                                }
+                                else{
+                                    Tail_CPU1->next = Tail_CPU2;
+                                    Tail_CPU1 = Tail_CPU1->next;
+                                    Tail_CPU1->next = NULL;
+                                }
+                                Tail_CPU1->curr->whichCpu = 1;
+                                // handling the new tail cpu 2
+                                Queue1_load++;
+                                Queue2_load--;
+                                Tail_CPU2 = newTail;
+                                if(Queue2_load != 0){
+                                    Tail_CPU2->next = NULL;
+                                }
+                                else{
+                                    Tail_CPU2 = Head_CPU2 = NULL;
+                                }
+                                numProcessesEntered_CPU1++;
+                                numProcessesEntered_CPU2--;
+                                stoped = true;
+                                printf("P%d is stealed to cpu%d and state is %d\n",Tail_CPU1->curr->id,Tail_CPU1->curr->whichCpu,stoped);
+                                if(p1 != NULL)
+                                    p1->curr->WaitingTime +=3;
+                                if(p2 != NULL)
+                                    p2->curr->WaitingTime +=3;
+                                //file things
+                                FILE *fp = fopen("scheduler_2.log", "a");
+                                fprintf(fp, "At\ttime\t%d\tprocess\t%d\twas\tstolen\n",getClk(),Tail_CPU1->curr->id);
+                                fclose(fp);
+                                //
+                            }
                         }
                     }
                 }
             }
-            else{
+            else if(stoped && returnFromSteal == getClk()){
+                printf("return from steal penalty at %d\n",returnFromSteal);
                 stoped = false;
                 printf("T%d stoped state is %d\n",now,stoped);
                 kill(runningPid1, SIGCONT);
                 kill(runningPid2, SIGCONT);
             }
         }
+
         // cpu1
-        if (!cpuBusy1 && head_cpu1 < tail_cpu1)
+        if (!cpuBusy1 && Queue1_load != 0)
         {
             if(switch1 == false){
-                int pIdx = cpu1IdxQ[head_cpu1++];
-                process p = allProcesses[pIdx];
-                runningId1 = p.id;
-
+                p1 = Head_CPU1;
+                Head_CPU1 = Head_CPU1->next;
+                runningId1 = p1->curr->id;
                 CPU1_data->finished      = false;
                 CPU1_data->busy          = true;
-                CPU1_data->remainingTime = p.remainigTime;
+                CPU1_data->remainingTime = p1->curr->remainigTime;
+                p1->curr->WaitingTime = getClk() - p1->curr->arrival;
                 cpuBusy1                 = true;
 
                 pid_t pid = fork();
                 if (pid == 0)
                 {
                     char ProcessId_str[16], remainingTime_str[16],sharedMem_id_cpu1_str[16],CPU1_sem_id_str[16];
-                    sprintf(ProcessId_str, "%d", p.id);
-                    sprintf(remainingTime_str, "%d", p.remainigTime);
+                    sprintf(ProcessId_str, "%d", p1->curr->id);
+                    sprintf(remainingTime_str, "%d", p1->curr->remainigTime);
                     sprintf(sharedMem_id_cpu1_str, "%d", sharedMem_id_cpu1);
                     sprintf(CPU1_sem_id_str, "%d", CPU1_sem_id);
                     
-                    char* process_argv[] = {(char*)"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu1_str,CPU1_sem_id_str,NULL};
+                    char* process_argv[] = {"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu1_str,CPU1_sem_id_str,NULL};
                     execv("./process.out",process_argv);
                     _exit(0);
                 }
                 runningPid1 = pid;
+                Queue1_load--;
+                if(Queue1_load == 0){
+                    Tail_CPU1 = Head_CPU1 = NULL;//reached the end
+                }
                 printf("Started P%d at t=%d on CPU 1\n", runningId1, getClk());
                 // File things
                 FILE *fp = fopen("scheduler_1.log", "a");
                 if(runningId1 != -1)
-                    fprintf(fp, "At\ttime\t%d\tprocess\t%d\tstarted\n",getClk(),runningId1);
+                fprintf(fp, "At\ttime\t%d\tprocess\t%d\tstarted\tarr\t%d\ttotal\t%d\tremain\t%d\twait\t%d\n",getClk(),runningId1,p1->curr->arrival,p1->curr->runTime,p1->curr->remainigTime,p1->curr->WaitingTime);
                 fclose(fp);
+                p1->curr->WaitingTime = getClk() - p1->curr->arrival;
+                allRunningTime1 += p1->curr->remainigTime;
             }
             else if(TimeToBaclFromSwitch_cpu1 == getClk()){
                 switch1 = false;
@@ -428,37 +574,44 @@ void Cpu2(int n,int m,int numOfProcesses){
             }
         }
         // cpu 2
-        if (!cpuBusy2 && head_cpu2 < tail_cpu2)
+        if (!cpuBusy2 && Queue2_load != 0)
         {
             if(switch2 == false){
-                int pIdx = cpu2IdxQ[head_cpu2++];
-                process p = allProcesses[pIdx];
-                runningId2 = p.id;
+                
+                p2 = Head_CPU2;
+                Head_CPU2 = Head_CPU2->next;
+                runningId2 = p2->curr->id;
 
                 CPU2_data->finished      = false;
                 CPU2_data->busy          = true;
-                CPU2_data->remainingTime = p.remainigTime;
+                CPU2_data->remainingTime = p2->curr->remainigTime;
                 cpuBusy2                 = true;
-
+                p2->curr->WaitingTime = getClk() - p2->curr->arrival;
                 pid_t pid = fork();
                 if (pid == 0)
                 {
                     char ProcessId_str[16], remainingTime_str[16],sharedMem_id_cpu2_str[16],CPU2_sem_id_str[16];
-                    sprintf(ProcessId_str, "%d", p.id);
-                    sprintf(remainingTime_str, "%d", p.remainigTime);
+                    sprintf(ProcessId_str, "%d", p2->curr->id);
+                    sprintf(remainingTime_str, "%d", p2->curr->remainigTime);
                     sprintf(sharedMem_id_cpu2_str, "%d", sharedMem_id_cpu2);
                     sprintf(CPU2_sem_id_str, "%d", CPU2_sem_id);
-                    char* process_argv[] = {(char*)"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu2_str,CPU2_sem_id_str,NULL};
+                    char* process_argv[] = {"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu2_str,CPU2_sem_id_str,NULL};
                     execv("./process.out",process_argv);
                     _exit(0);
                 }
                 runningPid2 = pid;
+                Queue2_load--;
+                if(Queue2_load == 0){
+                    Tail_CPU2 = Head_CPU2 = NULL;//reached the end
+                }
                 printf("Started P%d at t=%d on CPU 2\n", runningId2, getClk());
                 // file things
                 FILE *fp = fopen("scheduler_2.log", "a");
                 if(runningId2 != -1)
-                    fprintf(fp, "At\ttime\t%d\tprocess\t%d\tstarted\n",getClk(),runningId2);
+                fprintf(fp, "At\ttime\t%d\tprocess\t%d\tstarted\tarr\t%d\ttotal\t%d\tremain\t%d\twait\t%d\n",getClk(),runningId2,p2->curr->arrival,p2->curr->runTime,p2->curr->remainigTime,p2->curr->WaitingTime);
                 fclose(fp);
+                p2->curr->WaitingTime = getClk() - p2->curr->arrival;
+                allRunningTime2 += p2->curr->remainigTime;
             }
             else if(TimeToBaclFromSwitch_cpu2 == getClk()){
                 switch2 = false;
@@ -469,7 +622,6 @@ void Cpu2(int n,int m,int numOfProcesses){
         // CPU1
         if (cpuBusy1)
         {
-            // Non-blocking check: only proceed if process.c has signalled
             int status;
             if (waitpid(runningPid1, &status, WNOHANG) > 0)
             {
@@ -477,9 +629,23 @@ void Cpu2(int n,int m,int numOfProcesses){
                 printf("Finished P%d at t=%d on CPU 1 | remaining=%d finished=%d\n",runningId1, getClk(),CPU1_data->remainingTime, CPU1_data->finished);
                 //file things
                 FILE *fp = fopen("scheduler_1.log", "a");
-                fprintf(fp, "At\ttime\t%d\tprocess\t%d\tfinished\n",getClk(),runningId1);
+                fprintf(fp, "At\ttime\t%d\tprocess\t%d\tfinished\tarr\t%d\ttotal\t%d\tremaining\t%d\twait\t%d\tTA\t%d\tWAT\t%f\n",getClk(),runningId1,p1->curr->arrival,p1->curr->remainigTime,0,p1->curr->WaitingTime,getClk()-p1->curr->arrival,(getClk()-p1->curr->arrival)*1.0/p1->curr->remainigTime);
                 fclose(fp);
                 //
+                all_Waiting1 += p1->curr->WaitingTime;
+                if(WTA_head1 == NULL){
+                    WTA_head1 = (WTA_node*)malloc(sizeof(WTA_node));
+                    WTA_tail1 = WTA_head1;
+                    WTA_tail1->curr = (getClk()-p1->curr->arrival)*1.0/p1->curr->remainigTime;
+                    WTA_tail1->next = NULL;
+                }
+                else{
+                    WTA_tail1->next = (WTA_node*)malloc(sizeof(WTA_node));
+                    WTA_tail1 = WTA_tail1->next;
+                    WTA_tail1->curr = (getClk()-p1->curr->arrival)*1.0/p1->curr->remainigTime;
+                    WTA_tail1->next = NULL;
+                }
+                all_WTA1 += (getClk()-p1->curr->arrival)*1.0/p1->curr->remainigTime;
                 finishedCount++;
                 cpuBusy1    = false;
                 switch1 = true;
@@ -487,6 +653,10 @@ void Cpu2(int n,int m,int numOfProcesses){
                 runningPid1 = -1;
                 runningId1  = -1;
                 printf("total num of processes: %d received num = %d, finished: %d\n",totalProcesses, receivedCount, finishedCount);
+                free(p1->curr);
+                free(p1);
+                p1 = NULL;
+                endTime1 = getClk();
             }
         }
         // CPU2
@@ -498,9 +668,23 @@ void Cpu2(int n,int m,int numOfProcesses){
                 printf("Finished P%d at t=%d on CPU 2 | remaining=%d finished=%d\n",runningId2, getClk(),CPU2_data->remainingTime, CPU2_data->finished);
                 //file things
                 FILE *fp = fopen("scheduler_2.log", "a");
-                fprintf(fp, "At\ttime\t%d\tprocess\t%d\tfinished\n",getClk(),runningId2);
+                fprintf(fp, "At\ttime\t%d\tprocess\t%d\tfinished\tarr\t%d\ttotal\t%d\tremaining\t%d\twait\t%d\tTA\t%d\tWAT\t%f\n",getClk(),runningId2,p2->curr->arrival,p2->curr->remainigTime,0,p2->curr->WaitingTime,getClk()-p2->curr->arrival,(getClk()-p2->curr->arrival)*1.0/p2->curr->remainigTime);
                 fclose(fp);
                 //
+                all_Waiting2 += p2->curr->WaitingTime;
+                if(WTA_head2 == NULL){
+                    WTA_head2 = (WTA_node*)malloc(sizeof(WTA_node));
+                    WTA_tail2 = WTA_head2;
+                    WTA_tail2->curr = (getClk()-p2->curr->arrival)*1.0/p2->curr->remainigTime;
+                    WTA_tail2->next = NULL;
+                }
+                else{
+                    WTA_tail2->next = (WTA_node*)malloc(sizeof(WTA_node));
+                    WTA_tail2 = WTA_tail2->next;
+                    WTA_tail2->curr = (getClk()-p2->curr->arrival)*1.0/p2->curr->remainigTime;
+                    WTA_tail2->next = NULL;
+                }
+                all_WTA2 += (getClk()-p2->curr->arrival)*1.0/p2->curr->remainigTime;
                 finishedCount++;
                 cpuBusy2    = false;
                 switch2 = true;
@@ -508,21 +692,55 @@ void Cpu2(int n,int m,int numOfProcesses){
                 runningPid2 = -1;
                 runningId2  = -1;
                 printf("total num of processes: %d received num = %d, finished: %d\n",totalProcesses, receivedCount, finishedCount);
+                free(p2->curr);
+                free(p2);
+                p2 = NULL;
+                endTime2 = getClk();
             }
         }
 
         
     }
-
+    printf("number entered cpu1 : %d, waiting1 = %d\n",numProcessesEntered_CPU1,all_Waiting1);
+    printf("number entered cpu2 : %d, waiting2 = %d\n",numProcessesEntered_CPU2,all_Waiting2);
+    float avgWTA1 = all_WTA1/numProcessesEntered_CPU1, avgWTA2 = all_WTA2/numProcessesEntered_CPU2;
+    float sum1 = 0 , sum2 = 0;
+    WTA_node* cpy1 = WTA_head1, *cpy2 = WTA_head2;
+    while(WTA_head1!=NULL){
+        sum1 += (WTA_head1->curr - avgWTA1) * (WTA_head1->curr - avgWTA1);
+        WTA_head1 = WTA_head1->next;
+        free(cpy1);
+        cpy1 = WTA_head1;
+    }
+    while(WTA_head2!=NULL){
+        sum2 += (WTA_head2->curr - avgWTA2) * (WTA_head2->curr - avgWTA2);
+        WTA_head2 = WTA_head2->next;
+        free(cpy2);
+        cpy2 = WTA_head2;
+    }
+    float std1 = sqrt(sum1/numProcessesEntered_CPU1), std2 = sqrt(sum2/numProcessesEntered_CPU2);
+    //performance files
+    FILE *fp1 = fopen("scheduler_1.perf", "a");
+    fprintf(fp1,"CPU utilization = %f\n",round(allRunningTime1*1.0/endTime1 * 100 *100)/100);
+    fprintf(fp1,"Avg WTA = %f\n",round(all_WTA1*1.0 / numProcessesEntered_CPU1 * 100)/100);
+    fprintf(fp1,"Avg Waiting = %f\n",round(all_Waiting1*1.0/numProcessesEntered_CPU1 * 100) / 100);
+    fprintf(fp1,"Std WTA = %f\n",round(std1*100)/100);
+    fclose(fp1);
+    FILE *fp2 = fopen("scheduler_2.perf", "a");
+    fprintf(fp2,"CPU utilization = %f\n",round(allRunningTime2*1.0/endTime2 * 100 *100)/100);
+    fprintf(fp2,"Avg WTA = %f\n",round(all_WTA2*1.0 / numProcessesEntered_CPU2 * 100)/100);
+    fprintf(fp2,"Avg Waiting = %f\n",round(all_Waiting2*1.0/numProcessesEntered_CPU2 * 100) / 100);
+    fprintf(fp2,"Std WTA = %f\n",round(std2*100)/100);
+    fclose(fp2);
+    //
+    printf("I am scheduler and I am finished\n");
     shmdt(CPU1_data);
     shmctl(sharedMem_id_cpu1, 0,IPC_RMID);
     semctl(CPU1_sem_id, 0, IPC_RMID);
     shmdt(CPU2_data);
     shmctl(sharedMem_id_cpu2, IPC_RMID, NULL);
     semctl(CPU2_sem_id, 0, IPC_RMID);
-    free(allProcesses);
-    free(cpu1IdxQ);
-    free(cpu2IdxQ);
+    shmdt(schedulerData);
     //destroyClk(false);
     printf("%d\n",getpid());
     exit(100);
