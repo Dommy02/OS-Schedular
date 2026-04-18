@@ -104,11 +104,11 @@ int main(int argc, char *argv[])
     N = atoi(argv[2]);
     M = atoi(argv[3]);
     quantum = atoi(argv[4]);
-    // this is 1 CPU FCFS
+    /*// this is 1 CPU FCFS
     if (!strcmp(algorithm, "FCFS"))
     {
         quantum = __INT_MAX__;
-    }
+    }*/
 
     ////////////////////////////////////////////////////////////////////////////////////
     // message queue setup
