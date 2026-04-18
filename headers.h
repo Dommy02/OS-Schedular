@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <string.h>
 #include <math.h>
 
 #ifndef __cplusplus
@@ -19,6 +20,13 @@ typedef short bool;
 #endif
 
 #define SHKEY 300
+
+union Semun {
+    int val;
+    struct semid_ds *buf;
+    unsigned short *array;
+    struct seminfo *__buf;
+};
 
 typedef struct {
     int remainingTime;

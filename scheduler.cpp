@@ -641,7 +641,7 @@ void Cpu2(int n,int m,int sharedMem_key){
                 printf("Finished P%d at t=%d on CPU 1 | remaining=%d finished=%d\n",runningId1, getClk(),CPU1_data->remainingTime, CPU1_data->finished);
                 //file things
                 FILE *fp = fopen("scheduler_1.log", "a");
-                fprintf(fp, "At\ttime\t%d\tprocess\t%d\tfinished\tarr\t%d\ttotal\t%d\tremaining\t%d\twait\t%d\tTA\t%d\tWAT\t%f\n",getClk(),runningId1,p1->curr->arrival,p1->curr->remainigTime,0,p1->curr->WaitingTime,getClk()-p1->curr->arrival,(getClk()-p1->curr->arrival)*1.0/p1->curr->remainigTime);
+                fprintf(fp, "At\ttime\t%d\tprocess\t%d\tfinished\tarr\t%d\ttotal\t%d\tremaining\t%d\twait\t%d\tTA\t%d\tWAT\t%.2f\n",getClk(),runningId1,p1->curr->arrival,p1->curr->remainigTime,0,p1->curr->WaitingTime,getClk()-p1->curr->arrival,(getClk()-p1->curr->arrival)*1.0/p1->curr->remainigTime);
                 fclose(fp);
                 //
                 all_Waiting1 += p1->curr->WaitingTime;
@@ -680,7 +680,7 @@ void Cpu2(int n,int m,int sharedMem_key){
                 printf("Finished P%d at t=%d on CPU 2 | remaining=%d finished=%d\n",runningId2, getClk(),CPU2_data->remainingTime, CPU2_data->finished);
                 //file things
                 FILE *fp = fopen("scheduler_2.log", "a");
-                fprintf(fp, "At\ttime\t%d\tprocess\t%d\tfinished\tarr\t%d\ttotal\t%d\tremaining\t%d\twait\t%d\tTA\t%d\tWAT\t%f\n",getClk(),runningId2,p2->curr->arrival,p2->curr->remainigTime,0,p2->curr->WaitingTime,getClk()-p2->curr->arrival,(getClk()-p2->curr->arrival)*1.0/p2->curr->remainigTime);
+                fprintf(fp, "At\ttime\t%d\tprocess\t%d\tfinished\tarr\t%d\ttotal\t%d\tremaining\t%d\twait\t%d\tTA\t%d\tWAT\t%.2f\n",getClk(),runningId2,p2->curr->arrival,p2->curr->remainigTime,0,p2->curr->WaitingTime,getClk()-p2->curr->arrival,(getClk()-p2->curr->arrival)*1.0/p2->curr->remainigTime);
                 fclose(fp);
                 //
                 all_Waiting2 += p2->curr->WaitingTime;
@@ -733,16 +733,16 @@ void Cpu2(int n,int m,int sharedMem_key){
     float std1 = sqrt(sum1/numProcessesEntered_CPU1), std2 = sqrt(sum2/numProcessesEntered_CPU2);
     //performance files
     FILE *fp1 = fopen("scheduler_1.perf", "a");
-    fprintf(fp1,"CPU utilization = %f\n",round(allRunningTime1*1.0/endTime1 * 100 *100)/100);
-    fprintf(fp1,"Avg WTA = %f\n",round(all_WTA1*1.0 / numProcessesEntered_CPU1 * 100)/100);
-    fprintf(fp1,"Avg Waiting = %f\n",round(all_Waiting1*1.0/numProcessesEntered_CPU1 * 100) / 100);
-    fprintf(fp1,"Std WTA = %f\n",round(std1*100)/100);
+    fprintf(fp1,"CPU utilization = %.2f\n",round(allRunningTime1*1.0/endTime1 * 100 *100)/100);
+    fprintf(fp1,"Avg WTA = %.2f\n",round(all_WTA1*1.0 / numProcessesEntered_CPU1 * 100)/100);
+    fprintf(fp1,"Avg Waiting = %.2f\n",round(all_Waiting1*1.0/numProcessesEntered_CPU1 * 100) / 100);
+    fprintf(fp1,"Std WTA = %.2f\n",round(std1*100)/100);
     fclose(fp1);
     FILE *fp2 = fopen("scheduler_2.perf", "a");
-    fprintf(fp2,"CPU utilization = %f\n",round(allRunningTime2*1.0/endTime2 * 100 *100)/100);
-    fprintf(fp2,"Avg WTA = %f\n",round(all_WTA2*1.0 / numProcessesEntered_CPU2 * 100)/100);
-    fprintf(fp2,"Avg Waiting = %f\n",round(all_Waiting2*1.0/numProcessesEntered_CPU2 * 100) / 100);
-    fprintf(fp2,"Std WTA = %f\n",round(std2*100)/100);
+    fprintf(fp2,"CPU utilization = %.2f\n",round(allRunningTime2*1.0/endTime2 * 100 *100)/100);
+    fprintf(fp2,"Avg WTA = %.2f\n",round(all_WTA2*1.0 / numProcessesEntered_CPU2 * 100)/100);
+    fprintf(fp2,"Avg Waiting = %.2f\n",round(all_Waiting2*1.0/numProcessesEntered_CPU2 * 100) / 100);
+    fprintf(fp2,"Std WTA = %.2f\n",round(std2*100)/100);
     fclose(fp2);
     //
     printf("I am scheduler and I am finished\n");

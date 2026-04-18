@@ -82,94 +82,103 @@ int main(int argc, char * argv[])
         scanf("%d %d", &N, &M );
     }
 
-    // Start clock
-    int clkPid = fork();
-    if (clkPid == 0)
-    {
-        char *clk_argv[] = {"./clk.out", NULL};
-        execv("./clk.out", clk_argv);
-        perror("execv clk.out failed");
-        exit(1);
-    }
+    if(algNum != 2){
+        // Start clock
+        int clkPid = fork();
+        if (clkPid == 0)
+        {
+            char *clk_argv[] = {"./clk.out", NULL};
+            execv("./clk.out", clk_argv);
+            perror("execv clk.out failed");
+            exit(1);
+        }
 
-    int process_index = 0;
-    key_t msgQueue_key = ftok("clk.c", 10);
-    int msgQueue_id = msgget(msgQueue_key, 0666 | IPC_CREAT);
-    if (msgQueue_id == -1)
-    {
-        perror("msgget failed");
-        free(arr);
-        destroyClk(true);
-        exit(1);
-    }
+        int process_index = 0;
+        key_t msgQueue_key = ftok("clk.c", 10);
+        int msgQueue_id = msgget(msgQueue_key, 0666 | IPC_CREAT);
+        if (msgQueue_id == -1)
+        {
+            perror("msgget failed");
+            free(arr);
+            destroyClk(true);
+            exit(1);
+        }
 
-    msgQueue_id = msgget(msgQueue_key, 0666 | IPC_CREAT);
-    if (msgQueue_id == -1)
-    {
-        perror("msgget recreate failed");
-        free(arr);
-        destroyClk(true);
-        exit(1);
-    }
+        msgQueue_id = msgget(msgQueue_key, 0666 | IPC_CREAT);
+        if (msgQueue_id == -1)
+        {
+            perror("msgget recreate failed");
+            free(arr);
+            destroyClk(true);
+            exit(1);
+        }
 
-    // Data sync for scheduler
-    key_t sharedMemKey = ftok("clk.c", 90);
-    int sendingData = shmget(sharedMemKey, sizeof(generator_scheduler), 0666 | IPC_CREAT);
-    generator_scheduler *schedulerData = (generator_scheduler*) shmat(sendingData, NULL, 0);
-    int generator_sem = semget(sharedMemKey, 1, 0666 | IPC_CREAT);
-    semctl(generator_sem, 0, SETVAL, 1);
+        // Data sync for scheduler
+        key_t sharedMemKey = ftok("clk.c", 90);
+        int sendingData = shmget(sharedMemKey, sizeof(generator_scheduler), 0666 | IPC_CREAT);
+        generator_scheduler *schedulerData = (generator_scheduler*) shmat(sendingData, NULL, 0);
+        int generator_sem = semget(sharedMemKey, 1, 0666 | IPC_CREAT);
+        semctl(generator_sem, 0, SETVAL, 1);
 
-    schedulerData->IamFinished = false;
-    schedulerData->IamSendingNow = false;
-    schedulerData->NumSendingMess = 0;
-    schedulerData->sem_id = generator_sem;
-    int schedulerPid = fork();
-    if (schedulerPid == 0)
-    {
-        char processNumStr[16], algStr[16], rrStr[16], Nstr[16],Mstr[16],SharedMem_str[16];
-        sprintf(processNumStr, "%d", processesNum);
-        sprintf(algStr, "%d", algNum);
-        sprintf(rrStr, "%d", rrSlot);
-        sprintf(Nstr, "%d", N);
-        sprintf(Mstr, "%d", M);
-        sprintf(SharedMem_str, "%d", sendingData);
-
-        char *sch_argv[] = {"./scheduler.out", processNumStr, algStr, rrStr,Nstr,Mstr,SharedMem_str,NULL};
-        execv("./scheduler.out", sch_argv);
-        perror("execv scheduler.out failed");
-        exit(1);
-    }
-    
-    initClk();
-
-    while (process_index < processesNum)
-    {
-        sem_wait(generator_sem);
+        schedulerData->IamFinished = false;
         schedulerData->IamSendingNow = false;
-        sem_signal(generator_sem);
-        int now = getClk();
-        while (process_index < processesNum && arr[process_index].arrival <= now)
+        schedulerData->NumSendingMess = 0;
+        schedulerData->sem_id = generator_sem;
+        int schedulerPid = fork();
+        if (schedulerPid == 0)
+        {
+            char processNumStr[16], algStr[16], rrStr[16], Nstr[16],Mstr[16],SharedMem_str[16];
+            sprintf(processNumStr, "%d", processesNum);
+            sprintf(algStr, "%d", algNum);
+            sprintf(rrStr, "%d", rrSlot);
+            sprintf(Nstr, "%d", N);
+            sprintf(Mstr, "%d", M);
+            sprintf(SharedMem_str, "%d", sendingData);
+
+            char *sch_argv[] = {"./scheduler.out", processNumStr, algStr, rrStr,Nstr,Mstr,SharedMem_str,NULL};
+            execv("./scheduler.out", sch_argv);
+            perror("execv scheduler.out failed");
+            exit(1);
+        }
+        
+        initClk();
+
+        while (process_index < processesNum)
         {
             sem_wait(generator_sem);
-            schedulerData->IamSendingNow = true;
+            schedulerData->IamSendingNow = false;
             sem_signal(generator_sem);
-            if (msgsnd(msgQueue_id, &arr[process_index], sizeof(process) - sizeof(long), !IPC_NOWAIT) != -1)
+            int now = getClk();
+            while (process_index < processesNum && arr[process_index].arrival <= now)
             {
-                process_index++;
+                sem_wait(generator_sem);
+                schedulerData->IamSendingNow = true;
+                sem_signal(generator_sem);
+                if (msgsnd(msgQueue_id, &arr[process_index], sizeof(process) - sizeof(long), !IPC_NOWAIT) != -1)
+                {
+                    process_index++;
+                }
             }
         }
-    }
-    sem_wait(generator_sem);
-    schedulerData->IamSendingNow = false;
-    schedulerData->IamFinished = true;
-    sem_signal(generator_sem);
+        sem_wait(generator_sem);
+        schedulerData->IamSendingNow = false;
+        schedulerData->IamFinished = true;
+        sem_signal(generator_sem);
 
-    free(arr);
-    int stat;
-    wait(&stat);
-    if (!(stat& 0x00FF))
-        printf("Scheduler id : %d, finished %d \n",schedulerPid,stat >> 8);
-    clearResources(1);
+        free(arr);
+        int stat;
+        wait(&stat);
+        if (!(stat& 0x00FF))
+            printf("Scheduler id : %d, finished %d \n",schedulerPid,stat >> 8);
+        clearResources(1);
+    }
+    else{
+        char rrSlot_str[16];
+        sprintf(rrSlot_str,"%d",rrSlot);
+        char* argv[] = {"./process_generatorRR.out",rrSlot_str,NULL};
+        execv("./process_generatorRR.out",argv);
+        exit(0);
+    }
     exit(0);
 }
 
