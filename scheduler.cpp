@@ -246,7 +246,7 @@ void Preemtive_HPF() {
     shmdt(shared_data);
     shmdt(schedulerData);
 }
-
+//
 void Cpu2(int n,int m,int sharedMem_key){
     int N = n;
     int M = m;
