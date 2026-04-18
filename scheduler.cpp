@@ -427,10 +427,7 @@ void Cpu2(int n,int m,int sharedMem_key){
                         returnFromSteal = getClk() + M + 1;
                         if(remainingTime2 < remainingTime1){
                             if(Queue1_load != 0){
-                                if(runningPid1 != -1)
-                                    kill(runningPid1, SIGSTOP);
-                                if(runningPid2 != -1)
-                                    kill(runningPid2, SIGSTOP);
+                                
                                 //
                                 node* newTail = Head_CPU1;
                                 if(Queue1_load == 1)
@@ -444,6 +441,40 @@ void Cpu2(int n,int m,int sharedMem_key){
                                     Tail_CPU2 = Tail_CPU1;
                                     Head_CPU2 = Tail_CPU2;
                                     Tail_CPU2->next = NULL;
+                                    p2 = Head_CPU2;
+                                    Head_CPU2 = Head_CPU2->next;
+                                    runningId2 = p2->curr->id;
+
+                                    CPU2_data->finished      = false;
+                                    CPU2_data->busy          = true;
+                                    CPU2_data->remainingTime = p2->curr->remainigTime;
+                                    cpuBusy2                 = true;
+                                    p2->curr->WaitingTime = getClk() - p2->curr->arrival;
+                                    pid_t pid = fork();
+                                    if (pid == 0)
+                                    {
+                                        char ProcessId_str[16], remainingTime_str[16],sharedMem_id_cpu2_str[16],CPU2_sem_id_str[16];
+                                        sprintf(ProcessId_str, "%d", p2->curr->id);
+                                        sprintf(remainingTime_str, "%d", p2->curr->remainigTime);
+                                        sprintf(sharedMem_id_cpu2_str, "%d", sharedMem_id_cpu2);
+                                        sprintf(CPU2_sem_id_str, "%d", CPU2_sem_id);
+                                        char* process_argv[] = {(char*)"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu2_str,CPU2_sem_id_str,NULL};
+                                        execv("./process.out",process_argv);
+                                        _exit(0);
+                                    }
+                                    runningPid2 = pid;
+                                    Queue2_load--;
+                                    if(Queue2_load == 0){
+                                        Tail_CPU2 = Head_CPU2 = NULL;//reached the end
+                                    }
+                                    printf("Started P%d at t=%d on CPU 2\n", runningId2, getClk());
+                                    // file things
+                                    FILE *fp = fopen("scheduler_2.log", "a");
+                                    if(runningId2 != -1)
+                                    fprintf(fp, "At\ttime\t%d\tprocess\t%d\tstarted\tarr\t%d\ttotal\t%d\tremain\t%d\twait\t%d\n",getClk(),runningId2,p2->curr->arrival,p2->curr->runTime,p2->curr->remainigTime,p2->curr->WaitingTime);
+                                    fclose(fp);
+                                    p2->curr->WaitingTime = getClk() - p2->curr->arrival;
+                                    allRunningTime2 += p2->curr->remainigTime;
                                 }
                                 else{
                                     Tail_CPU2->next = Tail_CPU1;
@@ -473,14 +504,15 @@ void Cpu2(int n,int m,int sharedMem_key){
                                 fprintf(fp, "At\ttime\t%d\tprocess\t%d\twas\tstolen\n",getClk(),Tail_CPU2->curr->id);
                                 fclose(fp);
                                 //
-                            }
-                        }
-                        else{
-                            if(Queue2_load != 0){
                                 if(runningPid1 != -1)
                                     kill(runningPid1, SIGSTOP);
                                 if(runningPid2 != -1)
                                     kill(runningPid2, SIGSTOP);
+                            }
+                        }
+                        else{
+                            if(Queue2_load != 0){
+                                
                                 //
                                 node* newTail = Head_CPU2;
                                 if(Queue2_load == 1)
@@ -494,6 +526,41 @@ void Cpu2(int n,int m,int sharedMem_key){
                                     Tail_CPU1 = Tail_CPU2;
                                     Head_CPU1 = Tail_CPU1;
                                     Tail_CPU1->next = NULL;
+                                    p1 = Head_CPU1;
+                                    Head_CPU1 = Head_CPU1->next;
+                                    runningId1 = p1->curr->id;
+                                    CPU1_data->finished      = false;
+                                    CPU1_data->busy          = true;
+                                    CPU1_data->remainingTime = p1->curr->remainigTime;
+                                    p1->curr->WaitingTime = getClk() - p1->curr->arrival;
+                                    cpuBusy1                 = true;
+
+                                    pid_t pid = fork();
+                                    if (pid == 0)
+                                    {
+                                        char ProcessId_str[16], remainingTime_str[16],sharedMem_id_cpu1_str[16],CPU1_sem_id_str[16];
+                                        sprintf(ProcessId_str, "%d", p1->curr->id);
+                                        sprintf(remainingTime_str, "%d", p1->curr->remainigTime);
+                                        sprintf(sharedMem_id_cpu1_str, "%d", sharedMem_id_cpu1);
+                                        sprintf(CPU1_sem_id_str, "%d", CPU1_sem_id);
+                                        
+                                        char* process_argv[] = {(char*)"./process.out",ProcessId_str,remainingTime_str,sharedMem_id_cpu1_str,CPU1_sem_id_str,NULL};
+                                        execv("./process.out",process_argv);
+                                        _exit(0);
+                                    }
+                                    runningPid1 = pid;
+                                    Queue1_load--;
+                                    if(Queue1_load == 0){
+                                        Tail_CPU1 = Head_CPU1 = NULL;//reached the end
+                                    }
+                                    printf("Started P%d at t=%d on CPU 1\n", runningId1, getClk());
+                                    // File things
+                                    FILE *fp = fopen("scheduler_1.log", "a");
+                                    if(runningId1 != -1)
+                                    fprintf(fp, "At\ttime\t%d\tprocess\t%d\tstarted\tarr\t%d\ttotal\t%d\tremain\t%d\twait\t%d\n",getClk(),runningId1,p1->curr->arrival,p1->curr->runTime,p1->curr->remainigTime,p1->curr->WaitingTime);
+                                    fclose(fp);
+                                    p1->curr->WaitingTime = getClk() - p1->curr->arrival;
+                                    allRunningTime1 += p1->curr->remainigTime;
                                 }
                                 else{
                                     Tail_CPU1->next = Tail_CPU2;
@@ -524,6 +591,10 @@ void Cpu2(int n,int m,int sharedMem_key){
                                 fprintf(fp, "At\ttime\t%d\tprocess\t%d\twas\tstolen\n",getClk(),Tail_CPU1->curr->id);
                                 fclose(fp);
                                 //
+                                if(runningPid1 != -1)
+                                    kill(runningPid1, SIGSTOP);
+                                if(runningPid2 != -1)
+                                    kill(runningPid2, SIGSTOP);
                             }
                         }
                     }
