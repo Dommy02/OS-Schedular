@@ -397,7 +397,7 @@ void Cpu2(int n,int m,int sharedMem_key){
             if(checking_time == now && sendingNow == false && buf1.msg_qnum == 0 ){
                 printf("now is T%d and checking time = T%d and state is %d\n",now,checking_time,stoped);
                 checking_time = now+N;
-                if(stoped == false)
+                if(true)
                 {    int remainingTime1 = 0, remainingTime2 = 0;
                     sem_wait(CPU1_sem_id);
                     remainingTime1 += CPU1_data->remainingTime;
