@@ -146,8 +146,6 @@ void Preemtive_HPF() {
         int current_time = getClk();
 
         if (runningProcess) {
-            sem_wait(sem_id);
-            sem_signal(sem_id);
             int status;
             if (shared_data->remainingTime == 0) {
                 waitpid(runningProcess->pid, &status, 0);
