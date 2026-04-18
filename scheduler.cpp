@@ -243,6 +243,11 @@ void Preemtive_HPF() {
         fclose(perfFile);
     }
 
+    shmctl(shmid, IPC_RMID, NULL);
+    semctl(sem_id, 0, IPC_RMID);
+    semctl(sync_sem, 0, IPC_RMID);
+    shmctl(sendingData, IPC_RMID, NULL);
+    msgctl(msgQueue_key_id, IPC_RMID, NULL);
     shmdt(shared_data);
     shmdt(schedulerData);
 }
