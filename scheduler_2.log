@@ -1,4 +1,13 @@
-At	time	3	process	2	started	arr	2	total	2	remain	2	wait	1
-At	time	9	process	2	finished	arr	2	total	2	remaining	0	wait	4	TA	7	WAT	3.50
-At	time	10	process	4	started	arr	4	total	2	remain	2	wait	6
-At	time	12	process	4	finished	arr	4	total	2	remaining	0	wait	6	TA	8	WAT	4.00
+At	time	1	process	2	started	arr	1	total	5	remain	5	wait	0
+At	time	9	process	14	was	stolen
+At	time	16	process	2	finished	arr	1	total	5	remaining	0	wait	9	TA	15	WAT	3.00
+At	time	17	process	4	started	arr	1	total	2	remain	2	wait	16
+At	time	19	process	4	finished	arr	1	total	2	remaining	0	wait	16	TA	18	WAT	9.00
+At	time	20	process	5	started	arr	1	total	2	remain	2	wait	19
+At	time	22	process	5	finished	arr	1	total	2	remaining	0	wait	19	TA	21	WAT	10.50
+At	time	23	process	3	started	arr	1	total	5	remain	5	wait	22
+At	time	28	process	3	finished	arr	1	total	5	remaining	0	wait	22	TA	27	WAT	5.40
+At	time	29	process	10	started	arr	8	total	10	remain	10	wait	21
+At	time	39	process	10	finished	arr	8	total	10	remaining	0	wait	21	TA	31	WAT	3.10
+At	time	40	process	12	started	arr	8	total	5	remain	5	wait	32
+At	time	45	process	12	finished	arr	8	total	5	remaining	0	wait	32	TA	37	WAT	7.40
