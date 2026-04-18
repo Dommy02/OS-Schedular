@@ -1,0 +1,4 @@
+At	time	3	process	2	started	arr	2	total	2	remain	2	wait	1
+At	time	9	process	2	finished	arr	2	total	2	remaining	0	wait	4	TA	7	WAT	3.50
+At	time	10	process	4	started	arr	4	total	2	remain	2	wait	6
+At	time	12	process	4	finished	arr	4	total	2	remaining	0	wait	6	TA	8	WAT	4.00
