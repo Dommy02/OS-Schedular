@@ -15,6 +15,7 @@ typedef enum Process_State
     p_running
 } Process_State;
 //
+
 typedef struct PCB
 {
     pid_t pid;
@@ -28,6 +29,9 @@ typedef struct PCB
     int priority;
     Process_State p_state;
     int last_start_time;
+    // phase 2 updates
+    // PT_entry* PT;
+    
 } PCB;
 
 typedef struct NodePCB

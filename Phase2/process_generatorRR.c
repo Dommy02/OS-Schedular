@@ -7,18 +7,22 @@ typedef struct
     int arrival_time;
     int runtime;
     int priority;
+    // phase 2
+    // int base;
+    // int limit;
 } Process;
 
 void clearResources(int);
 Process *fileReading(int *);
 pid_t initiateClk();
-pid_t initiateScheduler(int, char[], int, int, int);
+pid_t initiateScheduler(int, char[], int, int, int, int);
 void creatMessageQueue();
 void mainLoop(int);
 
 Process *processes;
 int message_queue_id = -1;
-
+// quantum is argv[1]
+// k is argv[2]
 int main(int argc, char *argv[])
 {
     signal(SIGINT, clearResources);
@@ -37,12 +41,12 @@ int main(int argc, char *argv[])
     // printf("%s\n", algorithm);
 
     char algorithm[10] = "RR";
-    int N = 0, M = 0, quantum = atoi(argv[1]);
+    int N = 0, M = 0, quantum = atoi(argv[1]), K = atoi(argv[2]);
 
     // 3. Initiate and create the scheduler and clock processes.
     creatMessageQueue();
     pid_t clk_pid = initiateClk();
-    pid_t scheduler_pid = initiateScheduler(number_of_processes, algorithm, N, M, quantum);
+    pid_t scheduler_pid = initiateScheduler(number_of_processes, algorithm, N, M, quantum, K);
 
     // 4. Use this function after creating the clock process to initialize clock
     initClk();
@@ -142,7 +146,7 @@ pid_t initiateClk()
     return clk_pid;
 }
 
-pid_t initiateScheduler(int num_process, char algorithm[], int N, int M, int quantum)
+pid_t initiateScheduler(int num_process, char algorithm[], int N, int M, int quantum, int K)
 {
     pid_t scheduler_pid = fork();
     if (scheduler_pid == -1)
@@ -152,12 +156,13 @@ pid_t initiateScheduler(int num_process, char algorithm[], int N, int M, int qua
     }
     else if (scheduler_pid == 0)
     {
-        char n_str[10], m_str[10], q_str[10];
+        char n_str[10], m_str[10], q_str[10],K_str[10];
         sprintf(n_str, "%d", N);
         sprintf(m_str, "%d", M);
         sprintf(q_str, "%d", quantum);
+        sprintf(K_str, "%d", K);
 
-        execl("./schedulerRR.out", "schedulerRR.out", algorithm, n_str, m_str, q_str, NULL);
+        execl("./schedulerRR.out", "schedulerRR.out", algorithm, n_str, m_str, q_str,K_str,NULL);
         perror("Failed to start scheduler");
         exit(-1);
     }

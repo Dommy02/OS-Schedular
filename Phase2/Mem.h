@@ -1,49 +1,92 @@
-typedef struct Frame
+#include "headers.h"
+// ram is array of pointers
+typedef struct 
 {
     int taken; // 1 = yes it is taken - 0 =  Not taken and u can put inside it
     int processId; // process which has it's V_page or pageTable here 
-    int Is_pageTable;
-    int v_page;
-    int R,M;
+    int Is_pageTable; //
+    int R_M; // 0:(0 0)  - 1:(0 1) - 2:(1 0) - 3:(1 1)
 } Frame;
 
-typedef struct PT_entry
+typedef struct 
 {
     int phy_page;
     int valid;
 } PT_entry;
 
 
-void start_Ram(Frame* ram){
-    int counter = 32;
-    while(counter--){
-        ram->Is_pageTable = 0;
-        ram->taken = 0;
-        ram->M = 0;
-        ram->R = 0;
-        ram->processId = 0;
-        ram->v_page = -1;
+void start_Ram(Frame *ram){
+    for(int i = 0; i < 32; i++){
+        ram[i].Is_pageTable = 0;
+        ram[i].taken = 0;
+        ram[i].R_M = 0;
+        ram[i].processId = 0;
     }
 }
 
-int getFirstFree(Frame* ram){
-    int free = -1;
-    Frame * start = ram;
-    int counter = 0;
-    while(counter != 32 && free == -1){
+int putInsideRam(Frame *ram, Frame* required, int free){
+    if(free != -1){
+        ram[free].R_M = required->R_M;
+        return 0;
+    }
+    
+    for(int i = 0; i < 32; i++){
+        Frame* start = &ram[i];
         if(start->taken == 0){
-            free = counter;
-        }
-        else{
-            counter++;
-            start = start+counter;
+            free = i;
+            break;
         }
     }
 
+    if(free == -1) {
+        //To DO: NRU function need to update free
+    }
+    ram[free] = *required;
     return free;
 }
 
-int putInsideRam(Frame * ram){ // will put inside the ram
-    int freeFrame = getFirstFree(ram);
-    
+void modifyData(Frame *ram,PT_entry* PT, int v_address, int R_M, int processID, int limit){ // We send the 6 bits directly to this function
+    if (v_address >= limit) {
+        FILE *fp = fopen("memory.log", "a");
+        fprintf(fp, "Segmentation Fault !!\n");
+        fclose(fp);
+        return;
+    }
+
+    Frame req;
+    req.R_M = R_M;
+    if (PT[v_address].valid) {
+        putInsideRam(ram, &req, PT[v_address].phy_page);
+    }
+    else {
+        /* to do: print the log
+
+        FILE *fp = fopen("memory.log", "a");
+        fprintf(fp, "Segmentation Fault !!\n");
+        fclose(fp);
+        */
+
+        PT[v_address].valid = 1;
+        req.taken = 1;
+        req.processId = processID;
+        req.Is_pageTable = 0;
+        PT[v_address].phy_page = putInsideRam(ram, &req, -1);
+    }
+}
+
+void freeProcess(Frame* ram,int processId){
+    for(int i = 0; i < 32; i++){
+        if(ram[i].taken == 0 || ram[i].processId != processId) 
+            continue;
+        ram[i].Is_pageTable = 0;
+        ram[i].processId = -1;
+        ram[i].R_M = 0;
+        ram[i].taken = 0;
+    }
+}
+
+void clear_R(Frame* ram) {
+    for (int i = 0; i < 32; i++) {
+        ram[i].R_M &= ~2;
+    }
 }
