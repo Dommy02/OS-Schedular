@@ -1,0 +1,7 @@
+At	time	1	process	1	started	arr	1	total	9	remain	9	wait	0
+At	time	4	process	3	was	stolen
+At	time	14	process	1	finished	arr	1	total	9	remaining	0	wait	3	TA	13	WAT	1.44
+At	time	15	process	5	started	arr	4	total	6	remain	6	wait	11
+At	time	21	process	5	finished	arr	4	total	6	remaining	0	wait	11	TA	17	WAT	2.83
+At	time	22	process	6	started	arr	6	total	2	remain	2	wait	16
+At	time	24	process	6	finished	arr	6	total	2	remaining	0	wait	16	TA	18	WAT	9.00
