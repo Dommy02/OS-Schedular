@@ -6,6 +6,7 @@
 #include <sys/sem.h>
 #include <stdlib.h>
 #include <errno.h>
+#include "Mem.h"
 
 typedef enum Process_State
 {
@@ -30,7 +31,9 @@ typedef struct PCB
     Process_State p_state;
     int last_start_time;
     // phase 2 updates
-    // PT_entry* PT;
+    int base;
+    int limit;
+    PT_entry* PageTable;
     
 } PCB;
 

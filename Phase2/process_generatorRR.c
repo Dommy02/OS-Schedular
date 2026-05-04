@@ -1,17 +1,5 @@
 #include "headers.h"
 
-typedef struct
-{
-    long m_type;
-    int id;
-    int arrival_time;
-    int runtime;
-    int priority;
-    // phase 2
-    // int base;
-    // int limit;
-} Process;
-
 void clearResources(int);
 Process *fileReading(int *);
 pid_t initiateClk();
@@ -119,7 +107,7 @@ Process *fileReading(int *number_of_processes)
     for (int i = 0; i < file_size - 1; i++)
     {
         fgets(line, sizeof(line), file);
-        sscanf(line, "%d %d %d %d", &processes[i].id, &processes[i].arrival_time, &processes[i].runtime, &processes[i].priority);
+        sscanf(line, "%d %d %d %d %d %d", &processes[i].id, &processes[i].arrival_time, &processes[i].runtime, &processes[i].priority, &processes[i].base, &processes[i].limit);
         processes[i].m_type = 1;
     }
 

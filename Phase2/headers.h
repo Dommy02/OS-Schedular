@@ -54,7 +54,19 @@ void sem_signal(int semid) {
 int * shmaddr;                 //
 //===============================
 
-
+// process struct 
+typedef struct
+{
+    long m_type;
+    int id;
+    int arrival_time;
+    int runtime;
+    int priority;
+    // phase 2
+    int base;
+    int limit;
+} Process;
+/////////////
 
 int getClk()
 {

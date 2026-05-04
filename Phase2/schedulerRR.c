@@ -2,15 +2,6 @@
 #include "math.h"
 #include "Mem.h"
 
-typedef struct
-{
-    long m_type;
-    int id;
-    int arrival_time;
-    int runtime;
-    int priority;
-} Process;
-
 //
 void clearResources(int);
 void schedulerLoop();
@@ -450,8 +441,13 @@ PCB *makeProcessPCB(Process *processPtr)
     newProcessPCB->remaining_time = newProcessPCB->runtime;
     newProcessPCB->priority = processPtr->priority;
     newProcessPCB->p_state = p_ready;
-
     newProcessPCB->pid = -1;
+    // phase 2
+    newProcessPCB->base = processPtr->base;
+    newProcessPCB->limit = processPtr->limit;
+    newProcessPCB->PageTable = (PT_entry*) malloc(sizeof(PT_entry) * newProcessPCB->limit); // page table is array of like boxes { [V_address : Physical_address and valid bit] [] []  }
+    startPageTab(newProcessPCB->PageTable, newProcessPCB->limit);
+
     /*
     pid_t pid = fork();
 
