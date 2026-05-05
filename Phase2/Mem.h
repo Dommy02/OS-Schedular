@@ -30,6 +30,31 @@ void startPageTab(PT_entry* pageTable, int limit) {
     }
 }
 
+// Forward declaration
+int putInsideRam(Frame *ram, Frame* required, int free, int* NRU_M);
+
+// NRU function to find a free frame and set the Modified bit flag
+int NRU(Frame *ram, int* NRU_M) {
+    int target_frame = -1;
+    int min_class = 4;
+    
+    for (int i = 0; i < 32; i++) {
+        if (ram[i].taken == 1 && ram[i].Is_pageTable == 0) {
+            if (ram[i].R_M < min_class) {
+                min_class = ram[i].R_M;
+                target_frame = i;
+                if (min_class == 0) break; // Class 0 is the lowest possible, stop searching
+            }
+        }
+    }
+    
+    if (target_frame != -1 && NRU_M != NULL) {
+        *NRU_M = (min_class % 2); // Set to 1 if modified bit is 1 (classes 1 and 3)
+    }
+    
+    return target_frame;
+}
+
 // this called when The process enter the ready queue for the first time to put the page table and map V_address[0] 
 void putForFirstTime(Frame* ram,PT_entry* pageTable, int processID){
     int free = -1;
@@ -41,9 +66,9 @@ void putForFirstTime(Frame* ram,PT_entry* pageTable, int processID){
         }
     }
 
+    int NRM = 0;
     if(free == -1) {
-        //To DO: NRU function need to update free
-        // *NRM =  should be modified if u replaced something Modified(M bit = 1) to be = 1
+        free = NRU(ram, &NRM);
     }
     
     // first put the page table;
@@ -65,7 +90,8 @@ void putForFirstTime(Frame* ram,PT_entry* pageTable, int processID){
 int putInsideRam(Frame *ram, Frame* required, int free, int* NRU_M){
     if(free != -1){
         ram[free].R_M = required->R_M;
-        return 0;
+        // return 0;
+        return free;
     }
     
     for(int i = 0; i < 32; i++){
@@ -77,8 +103,7 @@ int putInsideRam(Frame *ram, Frame* required, int free, int* NRU_M){
     }
 
     if(free == -1) {
-        //To DO: NRU function need to update free
-        // *NRM =  should be modified if u replaced something Modified(M bit = 1) to be = 1
+        free = NRU(ram, NRU_M);
     }
     ram[free] = *required;
     return free;
@@ -93,13 +118,15 @@ int modifyData(Frame *ram,PT_entry* PT, int v_address, int R_M, int processID, i
         FILE *fp = fopen("memory.log", "a");
         fprintf(fp, "Segmentation Fault !!\n");
         fclose(fp);
-        return;
+        return -1;
+        // return;
     }
 
     Frame req;
     req.R_M = R_M;
     int NRM = 0;
-    if (PT[v_address].valid) {
+    // if (PT[v_address].valid) {
+    if (PT[v_page].valid) {
         putInsideRam(ram, &req, PT[v_page].phy_page, &NRM);// penalty = 1
         return 1; 
     }
