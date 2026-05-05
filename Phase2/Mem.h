@@ -1,5 +1,5 @@
 #include "headers.h"
-// ram is array of pointers
+// ram is array of Frames
 typedef struct 
 {
     int taken; // 1 = yes it is taken - 0 =  Not taken and u can put inside it
@@ -28,6 +28,36 @@ void startPageTab(PT_entry* pageTable, int limit) {
     for (int i = 0; i < limit; i++) {
         pageTable[i].valid = 0;
     }
+}
+
+int NRU(Frame* ram) {
+    int ram_sorted[32];
+    int buffer[5] = {0, 0, 0, 0, 0};
+    for (int i = 0; i < 32; i++) {
+        buffer[ram[i].Is_pageTable ? 4 : ram[i].R_M]++;
+    }
+    for (int i = 1; i < 5; i++) {
+        buffer[i] += buffer[i - 1];
+    }
+    int end = buffer[3];
+    for (int i = 31; i >= 0; i--) {
+        ram_sorted[--buffer[ram[i].Is_pageTable ? 4 : ram[i].R_M]] = i;
+    }
+    int stop = 0, chosen;
+    while (!stop) {
+        for (int i = 0; i < end; i++) {
+            int index = ram_sorted[i];
+            if (ram[index].R_M & 2) {
+                ram[index].R_M &= 2;
+            }
+            else {
+                chosen = index;
+                stop = 1;
+                break;
+            }
+        }
+    }
+    return chosen;
 }
 
 // this called when The process enter the ready queue for the first time to put the page table and map V_address[0] 
