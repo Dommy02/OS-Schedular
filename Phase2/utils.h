@@ -33,8 +33,9 @@ typedef struct PCB
     // phase 2 updates
     int base;
     int limit;
-    PT_entry* PageTable;
-    
+    // PageTable pageTable;
+    int PT_index;
+    int last_request;
 } PCB;
 
 typedef struct NodePCB

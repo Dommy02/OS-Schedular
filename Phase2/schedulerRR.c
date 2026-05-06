@@ -445,8 +445,9 @@ PCB *makeProcessPCB(Process *processPtr)
     // phase 2
     newProcessPCB->base = processPtr->base;
     newProcessPCB->limit = processPtr->limit;
-    newProcessPCB->PageTable = (PT_entry*) malloc(sizeof(PT_entry) * newProcessPCB->limit); // page table is array of like boxes { [V_address : Physical_address and valid bit] [] []  }
-    startPageTab(newProcessPCB->PageTable, newProcessPCB->limit);
+        //newProcessPCB->pageTable.pageTableArray = (PT_entry*) malloc(sizeof(PT_entry) * newProcessPCB->limit); // page table is array of like boxes { [V_address : Physical_address and valid bit] [] []  }
+        //startPageTab(newProcessPCB->pageTable.pageTableArray, newProcessPCB->limit);
+    // end of phase 2
 
     /*
     pid_t pid = fork();
