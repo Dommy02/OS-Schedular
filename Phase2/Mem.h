@@ -12,28 +12,43 @@ typedef struct
 
 typedef struct
 {
-    int processId;          // process which has it's V_page or pageTable here
-    PT_entry *pageTable;    //
-    int v_add;              //
-    int pageTableIndex;     // for frames that aren't page tables
-    int R_M;                // 0:(0 0)  - 1:(0 1) - 2:(1 0) - 3:(1 1)
+    int processId;       // process which has it's V_page or pageTable here
+    PT_entry *pageTable; //
+    int v_add;           //
+    int pageTableIndex;  // for frames that aren't page tables
+    int R_M;             // 0:(0 0)  - 1:(0 1) - 2:(1 0) - 3:(1 1)
 } Frame;
 
 typedef struct
 {
-    uint32_t free;  // Must be initially -1
+    uint32_t free; // Must be initially -1
     Frame *ramArray;
 } Ram;
 
-static void start_Ram(Ram *ram)
+// done
+static Ram *start_Ram()
 {
-    ram->free = -1;
+    Ram *ramArray = (Ram *)malloc(sizeof(Ram));
+    
+    ramArray->free = -1;
     // free = 0b11111111111111111111111111111111 (all frames free)
+
+    ramArray->ramArray = (Frame *)malloc(sizeof(Frame) * 32); 
+
+    // Initialize all frames
+    for (int i = 0; i < 32; i++)
+    {
+        ramArray->ramArray[i].pageTable = NULL;
+        ramArray->ramArray[i].processId = -1;
+        ramArray->ramArray[i].pageTableIndex = -1;
+        ramArray->ramArray[i].R_M = 0;
+    }
+    return ramArray;
 }
 
 // this function will be used by 2: 1- the blocked process after it returns from penalty and 2- to make it for V_address 0;
-// IMP when a process leave the blocked queue to go to ready queue 
-// #-# when a process leave the blocked queue to go to ready queue 
+// IMP when a process leave the blocked queue to go to ready queue
+// #-# when a process leave the blocked queue to go to ready queue // done
 static void printLoading(Frame *ram, int time, int frameIndex_for_PT, int V_add, int base, int processId)
 { // addressOnDisk = base + V_address from the request
 
@@ -105,9 +120,9 @@ static int putInsideRam(Ram *ramObject, Frame *required, int free, int *NRU_RM)
 // this called when The process enter the ready queue for the first time to put the page table and map V_address[0]
 
 // IMP1
-// ramObject pcb->limit pcb->id pcb->base currentTime 
-// return index of pageTable in ramObject 
-// #-# called at the scheduler when a process putForFirstTime
+// ramObject pcb->limit pcb->id pcb->base currentTime
+// return index of pageTable in ramObject
+// #-# called at the scheduler when a process putForFirstTime // done
 static int putForFirstTime(Ram *ramObject, int limit, int processID, int base, int time)
 {
     Frame *ram = ramObject->ramArray;
@@ -157,8 +172,8 @@ static int putForFirstTime(Ram *ramObject, int limit, int processID, int base, i
 // We send the 10 bits directly to this function
 // this function return the penalty
 
-// IMP3 this is called by the scheduler when a process reads a v address 
-// #-# called at the scheduler when a process reads a virtual address from the file  
+// IMP3 this is called by the scheduler when a process reads a v address
+// #-# called at the scheduler when a process reads a virtual address from the file // done
 static int modifyData(Ram *ramObject, int PT_index, int v_address, int R_M, int processID, int limit)
 {
     Frame *ram = ramObject->ramArray;
@@ -199,7 +214,7 @@ static int modifyData(Ram *ramObject, int PT_index, int v_address, int R_M, int 
     }
 }
 
-// #-# called when a process is finished  
+// #-# called when a process is finished  // done
 static void freeProcess(Ram *ramObject, int PT_index, int limit)
 {
     // free the frames from V_addresses in page table
@@ -219,7 +234,7 @@ static void freeProcess(Ram *ramObject, int PT_index, int limit)
     ram[PT_index].processId = -1;
 }
 
-// #-# called every k quantum's 
+// #-# called every k quantum's // done
 static void clear_R(Frame *ram)
 {
     for (int i = 0; i < 32; i++)

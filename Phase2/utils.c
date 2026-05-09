@@ -66,7 +66,14 @@ PCB *dequeuePCB(PCBQueue *q)
 
     return ptrPCB;
 }
-
+const int getHeadBlockedTime(PCBQueue *q)
+{
+    if (q->head)
+    {
+        return q->head->ptrProcessPCB->blocked_time;
+    }
+    return -1;
+}
 ////////////////////////////////////////////////////////////////
 Nodef *create_nodef(float value)
 {

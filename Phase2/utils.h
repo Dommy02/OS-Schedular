@@ -13,13 +13,14 @@ typedef enum Process_State
     p_ready,
     p_stopped,
     p_finished,
-    p_running
+    p_running,
+    p_blocked
 } Process_State;
 //
 
 typedef struct PCB
 {
-    pid_t pid;
+    pid_t pid;              
     int id;
     int arrival_time;
     int runtime;
@@ -35,8 +36,9 @@ typedef struct PCB
     int limit;
     // PageTable pageTable;
     int PT_index;
-    int last_request; //idk what this is 
-    int leave_blocked_time; // time to leave when blocked 
+    int blocked_time;     // time to leave when blocked
+    int last_request_hex; // idk what this is this is the virtual memory in hexa
+    char last_request_state;
 } PCB;
 
 typedef struct NodePCB
@@ -74,8 +76,9 @@ Nodef *create_nodef(float value);
 PCBQueue *createPCBqueue();
 void enqueuePCB(PCBQueue *q, PCB *ptrProcessPCB);
 PCB *dequeuePCB(PCBQueue *q);
+const int getHeadBlockedTime(PCBQueue *q);
 
-//////////////////////////////////
+    //////////////////////////////////
 fQueue *createFQueue();
 void enqueueF(fQueue *q, float value);
 float dequeueF(fQueue *q);

@@ -11,6 +11,7 @@ PCB *makeProcessPCB(Process *);
 void dotLogPrint(PCB *);
 void dotPerfPrint();
 void timeToEnd(int);
+void readAddressInRam(int);
 //
 
 ////////////////////////////////////////////////////////////////////////////
@@ -20,8 +21,8 @@ Process *receivedProcess;
 
 int messageQueueID;
 PCBQueue *processQueue;
+PCBQueue *blockedQueue; // blocked queue to be added IMP
 fQueue *wTATQueue;
-// blocked queue to be added IMP
 int sharedMemID;
 PCB *sharedMemPCBPtr;
 PCB *runningProcessPCBPtr;
@@ -66,6 +67,7 @@ int main(int argc, char *argv[])
     signal(SIGINT, clearResources);
     signal(SIGCHLD, sigchldHandler);
     signal(SIGUSR1, timeToEnd);
+    signal(SIGUSR2, readAddressInRam);
 
     ////////////////////////////////////////////////////////////////////////////////////
     // file opening
@@ -173,7 +175,6 @@ int main(int argc, char *argv[])
 
     ////////////////////////////////////////////////////////////////////////////////////
     // TODO implement the scheduler :)
-    start_Ram(ramArray);
     //
     schedulerLoop();
 
@@ -209,13 +210,29 @@ void clearResources(int signum)
         receivedProcess = NULL;
     }
     */
-
-    // (SHOULD UPDATE) (DONE) : Dont Use This instead loop on the size of the queue use dequeue and free the returned PCB pointer
-    for (int i = 0, n = processQueue->size; i < n; i++)
+    if (processQueue)
     {
-        PCB *delPtr = dequeuePCB(processQueue);
-        if (delPtr != NULL)
-            free(delPtr);
+        for (int i = 0, n = processQueue->size; i < n; i++)
+        {
+            PCB *delPtr = dequeuePCB(processQueue);
+            if (delPtr != NULL)
+                free(delPtr);
+        }
+    }
+    if (blockedQueue)
+    {
+        for (int i = 0, n = blockedQueue->size; i < n; i++)
+        {
+            PCB *delPtr = dequeuePCB(blockedQueue);
+            if (delPtr != NULL)
+                free(delPtr);
+        }
+    }
+    if (ramArray)
+    {
+        if (ramArray->ramArray)
+            free(ramArray->ramArray);
+        free(ramArray);
     }
     // free(processQueue);
 
@@ -224,6 +241,51 @@ void clearResources(int signum)
     exit(0);
 }
 
+void readAddressInRam(int signum)
+{
+    // a process reads from the file and raises SIGUSER2 if the penalty == 1 then it continues else it must go to the blocked queue
+    // with blocked time = current time + penalty
+    if (signum == SIGUSR2)
+    {
+        int RM = 0;
+        if (sharedMemPCBPtr->last_request_state == 'r' || sharedMemPCBPtr->last_request_state == 'R')
+            RM = 2;
+        else if (sharedMemPCBPtr->last_request_state == 'w' || sharedMemPCBPtr->last_request_state == 'W')
+            RM = 3;
+        if (RM == 0)
+        {
+            perror("execl failed");
+            raise(SIGINT);
+            exit(-1);
+        }
+        int penalty = modifyData(ramArray, sharedMemPCBPtr->PT_index, sharedMemPCBPtr->last_request_hex, RM,
+                                 sharedMemPCBPtr->id, sharedMemPCBPtr->limit);
+
+        if (penalty <= 1)
+        {
+            // leave the process
+            kill(runningProcessPCBPtr->pid, SIGCONT);
+        }
+        else
+        {
+            // kill sigstop to the process and
+            // memcpy(runningProcessPCBPtr,sharedMemPCBPtr, sizeof(PCB));
+            // say is isInterupted = 1
+            // runningProcessPCBPtr-> current time + penalty and add runningProcessPCBPtr to blocked queue
+            memcpy(runningProcessPCBPtr, sharedMemPCBPtr, sizeof(PCB));
+            kill(runningProcessPCBPtr->pid, SIGSTOP);
+            isInterupted = 1;
+            runningProcessPCBPtr->blocked_time = getClk() + penalty;
+            /* (NOT DONE) maybe done
+                Massive error is here is that the semaphore will not be upped since the process stops mid way
+                and if we add up here then eventually when the process starts again we will have an extra up
+                added a was interrupted in process.c so when there is an interruption we set it to 1
+            */
+            runningProcessPCBPtr->p_state = p_blocked;
+            enqueuePCB(blockedQueue, runningProcessPCBPtr);
+        }
+    }
+}
 void schedulerLoop()
 {
     // printf("|##########################|-> Entered schedulerLoop\n");
@@ -235,14 +297,17 @@ void schedulerLoop()
     nextCPUStartTime = -1;
     numberOfReceivedProcesses = 0;
     processQueue = createPCBqueue();
+    blockedQueue = createPCBqueue();
     wTATQueue = createFQueue();
+    int current_k = 0;
+    ramArray = start_Ram();
 
     //
     int lastProcessStartTime = -1;
     // for printing once per second
     int lastTickTime = -1;
-    // while (finishedProcesses < number_of_processes)
-    while (isProcessGeneratorDone == 0 || processQueue->size > 0 || runningProcessPCBPtr != NULL)
+
+    while (isProcessGeneratorDone == 0 || processQueue->size > 0 || blockedQueue->size > 0 || runningProcessPCBPtr != NULL)
     {
 
         int currentTime = getClk();
@@ -251,6 +316,28 @@ void schedulerLoop()
         if (lastTickTime < currentTime)
         {
             printf("Current Time : %d #\n", currentTime);
+        }
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////
+        //  R reset
+        if (current_k >= K)
+        {
+            current_k = 0;
+            clear_R(ramArray->ramArray);
+        }
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////
+        //  Blocked Queue check
+        if (blockedQueue->size > 0 && currentTime >= getHeadBlockedTime(blockedQueue))
+        {
+            PCB *unblockedProcessPCB = dequeuePCB(blockedQueue);
+            unblockedProcessPCB->blocked_time = -1;
+            printLoading(ramArray->ramArray, currentTime, unblockedProcessPCB->PT_index, unblockedProcessPCB->last_request_hex,
+                         unblockedProcessPCB->base, unblockedProcessPCB->id);
+
+            unblockedProcessPCB->p_state = p_stopped;
+
+            enqueuePCB(processQueue, unblockedProcessPCB);
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -267,8 +354,10 @@ void schedulerLoop()
             down(semSchedulerTurn);
             // printf("In parent the semSchedulerTurn After : %d\n", semSchedulerTurn);
         }
+
         if (!(isFree || isInterupted) && currentTime - lastProcessStartTime >= quantum)
         {
+            current_k++;
             // should say the old process is stopped and the next if should print the new started process
             if (processQueue->size > 0)
             {
@@ -344,6 +433,8 @@ void schedulerLoop()
                     // parent
                     runningProcessPCBPtr->pid = pid;
                     kill(runningProcessPCBPtr->pid, SIGSTOP);
+                    runningProcessPCBPtr->PT_index = putForFirstTime(ramArray, runningProcessPCBPtr->limit,
+                                                                     runningProcessPCBPtr->id, runningProcessPCBPtr->base, getClk());
                 }
             }
             else if (runningProcessPCBPtr->pid > 0)
@@ -418,6 +509,8 @@ void sigchldHandler(int signum)
 
         // printf("Process with ID : %d is Done\n", runningProcessPCBPtr->id);
         enqueueF(wTATQueue, wTAT);
+
+        freeProcess(ramArray, runningProcessPCBPtr->PT_index, runningProcessPCBPtr->limit);
         free(runningProcessPCBPtr);
         runningProcessPCBPtr = NULL;
 
@@ -450,6 +543,10 @@ PCB *makeProcessPCB(Process *processPtr)
     // phase 2
     newProcessPCB->base = processPtr->base;
     newProcessPCB->limit = processPtr->limit;
+    newProcessPCB->PT_index = -1;
+    newProcessPCB->blocked_time = -1;
+    newProcessPCB->last_request_hex = -1;
+    newProcessPCB->last_request_state = 'n';
     // newProcessPCB->pageTable.pageTableArray = (PT_entry*) malloc(sizeof(PT_entry) * newProcessPCB->limit); // page table is array of like boxes { [V_address : Physical_address and valid bit] [] []  }
     // startPageTab(newProcessPCB->pageTable.pageTableArray, newProcessPCB->limit);
     // end of phase 2

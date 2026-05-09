@@ -95,7 +95,7 @@ Process *fileReading(int *number_of_processes)
     }
     rewind(file);
 
-    fgets(line, sizeof(line), file);
+    fgets(line, sizeof(line), file); 
 
     Process *processes = (Process *)malloc((file_size - 1) * sizeof(Process));
     if (processes == NULL)
