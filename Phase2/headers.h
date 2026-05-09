@@ -38,7 +38,7 @@ typedef struct {
     bool IamFinished,IamSendingNow;
 } generator_scheduler;
 
-
+// why are these here ?
 void sem_wait(int semid) {
     struct sembuf op = {0, -1, 0};
     semop(semid, &op, 1);

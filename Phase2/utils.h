@@ -35,7 +35,7 @@ typedef struct PCB
     int limit;
     // PageTable pageTable;
     int PT_index;
-    int last_request;
+    int last_request; //idk what this is 
 } PCB;
 
 typedef struct NodePCB

@@ -1,52 +1,59 @@
+#ifndef MEM_H
+#define MEM_H
 #include <stdio.h>
 #include <stdint.h>
 
 // ram is array of Frames
 
-typedef struct 
+typedef struct
 {
     int phy_page;
     int valid;
 } PT_entry;
 
-typedef struct 
+typedef struct
 {
-    int processId; // process which has it's V_page or pageTable here 
-    PT_entry* pageTable; //
+    int processId;       // process which has it's V_page or pageTable here
+    PT_entry *pageTable; //
     int v_add;
-    int pageTableIndex; // for frames aren't page table
-    int R_M; // 0:(0 0)  - 1:(0 1) - 2:(1 0) - 3:(1 1)
+    int pageTableIndex; // for frames that aren't page tables
+    int R_M;            // 0:(0 0)  - 1:(0 1) - 2:(1 0) - 3:(1 1)
 } Frame;
 
 typedef struct
 {
-    uint32_t free; // Must be initially -1
-    Frame* ramArray;
+    uint32_t free;  // Must be initially -1
+    Frame *ramArray;
 } Ram;
 
-void start_Ram(Ram* ram) {
+static void start_Ram(Ram *ram)
+{
     ram->free = -1;
+    // free = 0b11111111111111111111111111111111 (all frames free)
 }
 
-
 // this function will be used by 2: 1- the blocked process after it returns from penalty and 2- to make it for V_address 0;
-void printLoading(Frame* ram,int time,int frameIndex_for_PT,int V_add,int base,int processId){ // addressOnDisk = base + V_address from the request
-    
+static void printLoading(Frame *ram, int time, int frameIndex_for_PT, int V_add, int base, int processId)
+{ // addressOnDisk = base + V_address from the request
+
     int i = ram[frameIndex_for_PT].pageTable[V_add].phy_page;
-    // now i is the frame number;  2 things could happen: 1-function putInFirstTime will make it for V_add[0] so I know the fram number or 
+    // now i is the frame number;  2 things could happen: 1-function putInFirstTime will make it for V_add[0] so I know the frame number or
     //                                                    2- the blocked function use this function so, it doesn't know the frame number
     // ******* Memory.log part *******
     FILE *file = fopen("memory.log", "a");
-    fprintf(file, "At time %d disk address %d for process %d is loaded into memory page %d.\n",time, V_add+base, processId, i);
+    fprintf(file, "At time %d disk address %d for process %d is loaded into memory page %d.\n", time, V_add + base, processId, i);
     fclose(file);
     // ******* end of Memory.log part *******
 }
 
-int NRU(Frame* ram) {
-    
+static int NRU(Frame *ram)
+{
+
     int chosen, chosenRM = 4;
-    for (int i = 0; i < 32 && chosenRM > 0; i++) {
-        if (!ram[i].pageTable && ram[i].R_M < chosenRM) {
+    for (int i = 0; i < 32 && chosenRM > 0; i++)
+    {
+        if (!ram[i].pageTable && ram[i].R_M < chosenRM)
+        {
             chosen = i;
             chosenRM = ram[i].R_M;
         }
@@ -63,25 +70,29 @@ int NRU(Frame* ram) {
     return chosen;
 }
 
-// helper fucntion
-int putInsideRam(Ram* ramObject, Frame* required, int free, int* NRU_RM){
-    Frame* ram = ramObject->ramArray;
-    if(free != -1){
+// helper function
+static int putInsideRam(Ram *ramObject, Frame *required, int free, int *NRU_RM)
+{
+    Frame *ram = ramObject->ramArray;
+    if (free != -1)
+    {
         ram[free].R_M = required->R_M;
         return 0;
     }
 
-    if(ramObject->free == 0) {
+    if (ramObject->free == 0)
+    {
         free = NRU(ram);
         *NRU_RM = ram[free].R_M;
     }
-    else {
+    else
+    {
         // Print (Free Physical page x allocated)
         free = __builtin_ctz(ramObject->free);
         *NRU_RM = 0;
         // ******* Memory.log part *******
         FILE *file = fopen("memory.log", "a");
-        fprintf(file, "Free Physical page %d allocated\n",free);
+        fprintf(file, "Free Physical page %d allocated\n", free);
         fclose(file);
         // ******* end of Memory.log part *******
     }
@@ -90,21 +101,25 @@ int putInsideRam(Ram* ramObject, Frame* required, int free, int* NRU_RM){
     return free;
 }
 
-// this called when The process enter the ready queue for the first time to put the page table and map V_address[0] 
-int putForFirstTime(Ram* ramObject, int limit, int processID, int base, int time){
-    Frame* ram = ramObject->ramArray;
+// this called when The process enter the ready queue for the first time to put the page table and map V_address[0]
+static int putForFirstTime(Ram *ramObject, int limit, int processID, int base, int time)
+{
+    Frame *ram = ramObject->ramArray;
     int free;
-    if(ramObject->free == 0) {
+    if (ramObject->free == 0)
+    {
         free = NRU(ram);
     }
-    else {
+    else
+    {
         free = __builtin_ctz(ramObject->free);
     }
-    
+
     // free has the page table frame index
     // first put the page table;
-    ram[free].pageTable = (PT_entry*) malloc(sizeof(PT_entry) * limit);
-    for (int i = 0; i < limit; i++) {
+    ram[free].pageTable = (PT_entry *)malloc(sizeof(PT_entry) * limit);
+    for (int i = 0; i < limit; i++)
+    {
         ram[free].pageTable[i].valid = 0;
     }
     ram[free].processId = processID;
@@ -112,7 +127,7 @@ int putForFirstTime(Ram* ramObject, int limit, int processID, int base, int time
     ramObject->free &= ~(1 << free);
     // ******* Memory.log part *******
     FILE *file = fopen("memory.log", "a");
-    fprintf(file, "Free Physical page %d allocated\n",free);
+    fprintf(file, "Free Physical page %d allocated\n", free);
     fclose(file);
     // ******* end of Memory.log part *******
 
@@ -123,7 +138,7 @@ int putForFirstTime(Ram* ramObject, int limit, int processID, int base, int time
     req.R_M = 2; // Assumption that first page has R = 1
     req.pageTableIndex = free;
     req.v_add = 0;
-    ram[free].pageTable[0].phy_page = putInsideRam(ramObject, &req, -1, NULL);// I put the physical page index
+    ram[free].pageTable[0].phy_page = putInsideRam(ramObject, &req, -1, NULL); // I put the physical page index
     ram[free].pageTable[0].valid = 1;
     // for now
     // ******* Memory.log part *******
@@ -134,11 +149,13 @@ int putForFirstTime(Ram* ramObject, int limit, int processID, int base, int time
 
 // this function is used for any request from requests.txt
 // We send the 10 bits directly to this function
-// this function return the penaly
-int modifyData(Ram* ramObject, int PT_index, int v_address, int R_M, int processID, int limit){
-    Frame* ram = ramObject->ramArray;
+// this function return the penalty
+static int modifyData(Ram *ramObject, int PT_index, int v_address, int R_M, int processID, int limit)
+{
+    Frame *ram = ramObject->ramArray;
     int v_page = v_address >> 4;
-    if (v_page >= limit) {
+    if (v_page >= limit)
+    {
         FILE *fp = fopen("memory.log", "a");
         fprintf(fp, "Segmentation Fault !!\n");
         fclose(fp);
@@ -148,15 +165,18 @@ int modifyData(Ram* ramObject, int PT_index, int v_address, int R_M, int process
     Frame req;
     req.R_M = R_M;
     int NRM = 0;
-    
-    if (ram[PT_index].pageTable[v_page].valid) {
-        putInsideRam(ramObject, &req, ram[PT_index].pageTable[v_page].phy_page, NULL);// penalty = 1
+
+    if (ram[PT_index].pageTable[v_page].valid)
+    {
+        putInsideRam(ramObject, &req, ram[PT_index].pageTable[v_page].phy_page, NULL); // penalty = 1
         return v_page ? 1 : 0;
     }
-    else {
+    else
+    {
         // page fault
         // ******* Memory.log part *******
-        if(v_address != -1){
+        if (v_address != -1)
+        {
             FILE *file = fopen("memory.log", "a");
             fprintf(file, "PageFault upon VA 0x%x from process %d\n", v_address, processID);
             fclose(file);
@@ -165,17 +185,20 @@ int modifyData(Ram* ramObject, int PT_index, int v_address, int R_M, int process
         ram[PT_index].pageTable[v_page].valid = 1;
         req.processId = processID;
         req.pageTable = ram[PT_index].pageTable;
-        ram[PT_index].pageTable[v_page].phy_page = putInsideRam(ramObject, &req, -1, &NRM);// penalty = 1 + 10
+        ram[PT_index].pageTable[v_page].phy_page = putInsideRam(ramObject, &req, -1, &NRM); // penalty = 1 + 10
         return 11 + (NRM & 1) * 10;
     }
 }
 
-void freeProcess(Ram* ramObject, int PT_index, int limit){
-    // free the frames from V_adrresses in page table
-    Frame* ram = ramObject->ramArray;
-    Frame* PT = ram + PT_index;
-    for (int i = 0; i < limit; i++) {
-        if(PT->pageTable[i].valid) {
+static void freeProcess(Ram *ramObject, int PT_index, int limit)
+{
+    // free the frames from V_addresses in page table
+    Frame *ram = ramObject->ramArray;
+    Frame *PT = ram + PT_index;
+    for (int i = 0; i < limit; i++)
+    {
+        if (PT->pageTable[i].valid)
+        {
             ramObject->free |= 1 << PT->pageTable[i].phy_page;
         }
     }
@@ -183,11 +206,15 @@ void freeProcess(Ram* ramObject, int PT_index, int limit){
     ramObject->free |= 1 << PT_index;
     free(ram[PT_index].pageTable);
     ram[PT_index].pageTable = NULL;
-    ram[PT_index].processId  = -1;
+    ram[PT_index].processId = -1;
 }
 
-void clear_R(Frame* ram) {
-    for (int i = 0; i < 32; i++) {
+static void clear_R(Frame *ram)
+{
+    for (int i = 0; i < 32; i++)
+    {
         ram[i].R_M &= 1;
     }
 }
+
+#endif

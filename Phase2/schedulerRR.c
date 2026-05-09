@@ -49,8 +49,12 @@ int numberOfReceivedProcesses = 0;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // argc and argv data
-int quantum, N, M;
+int quantum, N, M, K;
 char algorithm[10];
+
+////////////////////////////////////////////////////////////////////////////////////
+// phase 2
+Ram *ramArray;
 
 int main(int argc, char *argv[])
 {
@@ -86,8 +90,9 @@ int main(int argc, char *argv[])
         argv[2] = N
         argv[3] = M
         argv[4] = quantum
+        argv[5] = k -> how many quantum's to reset all R bits
     */
-    if (argc < 5)
+    if (argc < 6)
     {
         printf("Scheduler argv missing values\n");
         exit(-1);
@@ -96,6 +101,7 @@ int main(int argc, char *argv[])
     N = atoi(argv[2]);
     M = atoi(argv[3]);
     quantum = atoi(argv[4]);
+    K = atoi(argv[5]);
     /*// this is 1 CPU FCFS
     if (!strcmp(algorithm, "FCFS"))
     {
@@ -166,6 +172,8 @@ int main(int argc, char *argv[])
 
     ////////////////////////////////////////////////////////////////////////////////////
     // TODO implement the scheduler :)
+    start_Ram(ramArray);
+    //
     schedulerLoop();
 
     // finalPrint();
@@ -177,7 +185,7 @@ int main(int argc, char *argv[])
 
 void clearResources(int signum)
 {
-    
+
     printf("Scheduler Cleared It's Stuff\n");
 
     if (sharedMemID != -1)
@@ -187,15 +195,12 @@ void clearResources(int signum)
         fclose(dotLogFilePtr);
     if (dotPerfFilePtr != NULL)
         fclose(dotPerfFilePtr);
-    
 
     if (semProcessTurn != -1)
         semctl(semProcessTurn, 0, IPC_RMID);
     if (semSchedulerTurn != -1)
         semctl(semSchedulerTurn, 0, IPC_RMID);
 
-    
-    
     /*
     if (receivedProcess != NULL)
     {
@@ -203,8 +208,6 @@ void clearResources(int signum)
         receivedProcess = NULL;
     }
     */
-    
-    
 
     // (SHOULD UPDATE) (DONE) : Dont Use This instead loop on the size of the queue use dequeue and free the returned PCB pointer
     for (int i = 0, n = processQueue->size; i < n; i++)
@@ -213,7 +216,7 @@ void clearResources(int signum)
         if (delPtr != NULL)
             free(delPtr);
     }
-    //free(processQueue);
+    // free(processQueue);
 
     //
 
@@ -446,10 +449,11 @@ PCB *makeProcessPCB(Process *processPtr)
     // phase 2
     newProcessPCB->base = processPtr->base;
     newProcessPCB->limit = processPtr->limit;
-        //newProcessPCB->pageTable.pageTableArray = (PT_entry*) malloc(sizeof(PT_entry) * newProcessPCB->limit); // page table is array of like boxes { [V_address : Physical_address and valid bit] [] []  }
-        //startPageTab(newProcessPCB->pageTable.pageTableArray, newProcessPCB->limit);
+    // newProcessPCB->pageTable.pageTableArray = (PT_entry*) malloc(sizeof(PT_entry) * newProcessPCB->limit); // page table is array of like boxes { [V_address : Physical_address and valid bit] [] []  }
+    // startPageTab(newProcessPCB->pageTable.pageTableArray, newProcessPCB->limit);
     // end of phase 2
 
+    // (TODO) - the TA said we should fork on arrival and not on starting
     /*
     pid_t pid = fork();
 
