@@ -35,9 +35,11 @@ int main(int argc, char *argv[])
 
     ///////////////////////////////////////////////////////////////////////////////
     // file reading
+    // printf("\n\ni am in the child\n");
     char filename[50];
     sprintf(filename, "requests_%d.txt", sharedMemPCBPtr->id);
     FILE *requestsFile = fopen(filename, "r");
+    // printf("Opening %s\n", filename);
     if (requestsFile == NULL)
     {
         printf("Error in Opening %s File", filename);
@@ -45,7 +47,7 @@ int main(int argc, char *argv[])
         exit(-1);
     }
     char line[256];
-    fgets(line, sizeof(line), requestsFile); // the commented line '#'
+    //  fgets(line, sizeof(line), requestsFile); // the commented line '#'
     long long currentPosition = ftell(requestsFile);
 
     while (sharedMemPCBPtr->remaining_time > 0)
@@ -73,15 +75,22 @@ int main(int argc, char *argv[])
             // TODO read from requests file and kill siguser2 to parent after populating the shared mem ptr
             if (fgets(line, sizeof(line), requestsFile) != NULL)
             {
+
                 int readTime, vAddressHex;
                 char readState;
-                sscanf(line, "%d %x %c", &readTime, &vAddressHex, &readState);
+                sscanf(line, "%d 0x%x %c", &readTime, &vAddressHex, &readState);
+
                 if (timeInCpu >= readTime)
                 {
                     currentPosition = ftell(requestsFile);
                     // let the fgets advance the pointer
                     sharedMemPCBPtr->last_request_hex = vAddressHex;
                     sharedMemPCBPtr->last_request_state = readState;
+                    // printf("readTime :%d\n", readTime);
+                    // printf("timeInCpu :%d\n", timeInCpu);
+                    // printf("hexadecimal :%x\n", sharedMemPCBPtr->last_request_hex);
+                    // printf("char :%c\n", sharedMemPCBPtr->last_request_state);
+
                     kill(getppid(), SIGUSR2);
                     raise(SIGSTOP);
                 }

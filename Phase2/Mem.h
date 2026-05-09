@@ -28,12 +28,14 @@ typedef struct
 // done
 static Ram *start_Ram()
 {
+    FILE *file = fopen("memory.log", "w");
+    fclose(file);
     Ram *ramArray = (Ram *)malloc(sizeof(Ram));
-    
+
     ramArray->free = -1;
     // free = 0b11111111111111111111111111111111 (all frames free)
 
-    ramArray->ramArray = (Frame *)malloc(sizeof(Frame) * 32); 
+    ramArray->ramArray = (Frame *)malloc(sizeof(Frame) * 32);
 
     // Initialize all frames
     for (int i = 0; i < 32; i++)
@@ -159,7 +161,8 @@ static int putForFirstTime(Ram *ramObject, int limit, int processID, int base, i
     req.R_M = 2; // Assumption that first page has R = 1
     req.pageTableIndex = free;
     req.v_add = 0;
-    ram[free].pageTable[0].phy_page = putInsideRam(ramObject, &req, -1, NULL); // I put the physical page index
+    int temp = 0;
+    ram[free].pageTable[0].phy_page = putInsideRam(ramObject, &req, -1, &temp); // I put the physical page index
     ram[free].pageTable[0].valid = 1;
     // for now
     // ******* Memory.log part *******

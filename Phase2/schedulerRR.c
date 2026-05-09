@@ -58,11 +58,11 @@ int current_k = 0;
 ////////////////////////////////////////////////////////////////////////////////////
 // phase 2
 Ram *ramArray;
-
+int saveMeSemaphore;
 int main(int argc, char *argv[])
 {
 
-    printf("Hi i am the scheduler\n");
+    // printf("#Hi i am the scheduler\n");
     ////////////////////////////////////////////////////////////////////////////////////
     // setting clock and signals
     initClk();
@@ -97,9 +97,9 @@ int main(int argc, char *argv[])
         argv[4] = quantum
         argv[5] = k -> how many quantum's to reset all R bits
     */
-    if (argc < 6)
+    if (argc < 7)
     {
-        printf("Scheduler argv missing values\n");
+        printf("#Scheduler argv missing values\n");
         exit(-1);
     }
     strcpy(algorithm, argv[1]);
@@ -107,12 +107,13 @@ int main(int argc, char *argv[])
     M = atoi(argv[3]);
     quantum = atoi(argv[4]);
     K = atoi(argv[5]);
+    saveMeSemaphore = atoi(argv[6]);
     /*// this is 1 CPU FCFS
     if (!strcmp(algorithm, "FCFS"))
     {
         quantum = __INT_MAX__;
     }*/
-    printf("scheduler post argv\n");
+    // printf("#scheduler post argv\n");
     ////////////////////////////////////////////////////////////////////////////////////
     // message queue setup
     key_t key = ftok("keyfile", 'a');
@@ -178,11 +179,11 @@ int main(int argc, char *argv[])
     ////////////////////////////////////////////////////////////////////////////////////
     // TODO implement the scheduler :)
     //
-    printf("scheduler before the main loop\n");
     schedulerLoop();
 
     // finalPrint();
 
+    up(saveMeSemaphore);
     ////////////////////////////////////////////////////////////////////////////////////
     // upon termination release the clock resources.
     destroyClk(true);
@@ -257,7 +258,7 @@ void readAddressInRam(int signum)
             RM = 3;
         if (RM == 0)
         {
-            perror("execl failed");
+            printf("the RM is wrong\n");
             raise(SIGINT);
             exit(-1);
         }
@@ -305,6 +306,7 @@ void schedulerLoop()
     // for printing once per second
     int lastTickTime = -1;
 
+    // while (processQueue->size > 0 || blockedQueue->size > 0 || runningProcessPCBPtr != NULL)
     while (isProcessGeneratorDone == 0 || processQueue->size > 0 || blockedQueue->size > 0 || runningProcessPCBPtr != NULL)
     {
 
@@ -318,16 +320,18 @@ void schedulerLoop()
 
         ////////////////////////////////////////////////////////////////////////////////////////////////
         //  R reset
-        if (current_k >= K)
+        if (lastTickTime < currentTime && current_k >= K)
         {
+            // printf("R reset Block \n");
             current_k = 0;
             clear_R(ramArray->ramArray);
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////
         //  Blocked Queue check
-        if (blockedQueue->size > 0 && currentTime >= getHeadBlockedTime(blockedQueue))
+        if ((lastTickTime < currentTime) && blockedQueue->size > 0 && currentTime >= getHeadBlockedTime(blockedQueue))
         {
+            // printf("Blocked Queue check Block \n");
             PCB *unblockedProcessPCB = dequeuePCB(blockedQueue);
             unblockedProcessPCB->blocked_time = -1;
 
@@ -342,12 +346,14 @@ void schedulerLoop()
         //  pre-emptive block
         if ((lastTickTime < currentTime) && runningProcessPCBPtr != NULL && !(isFree || isInterrupted))
         {
+            // printf("pre-emptive block Block \n");
             up(semProcessTurn);
             down(semSchedulerTurn);
         }
 
         if (!(isFree || isInterrupted) && currentTime - lastProcessStartTime >= quantum)
         {
+            // printf("quantum is over Block \n");
             current_k++;
             // should say the old process is stopped and the next if should print the new started process
             if (processQueue->size > 0)
@@ -375,33 +381,50 @@ void schedulerLoop()
         int receiveValue = 0;
         while (receiveValue != -1)
         {
+
             receiveValue = msgrcv(messageQueueID, receivedProcess, sizeof(Process), 1, IPC_NOWAIT);
             if (receiveValue != -1)
             {
+
                 // printf("|##########################|-> Process ID : %d, Current Time : %d\n", receivedProcess->id, currentTime);
 
                 PCB *newProcessPCB = makeProcessPCB(receivedProcess);
-
                 enqueuePCB(processQueue, newProcessPCB);
+                // printf("# hi am a process with data id: %d\n", newProcessPCB->id);
+                // printf("# the process queue size -> %d\n", processQueue->size);
                 numberOfReceivedProcesses++;
             }
         }
 
         //
 
+        /*
+        if (lastTickTime < currentTime)
+        {
+            printf("isFree - %d \n", isFree);
+            printf("isInterrupted - %d \n", isInterrupted);
+            printf("currentTime - %d \n", currentTime);
+            printf("nextCPUStartTime - %d \n", nextCPUStartTime);
+            printf("processQueue->size - %d \n", processQueue->size);
+        }
+        */
         ////////////////////////////////////////////////////////////////////////////////////////////////
         //  the cpu is free or Interrupted
         if ((isFree || isInterrupted) && currentTime >= nextCPUStartTime && processQueue->size > 0)
         {
+
+            // printf("cpu is free or Interrupted Block \n"); // yes
             isFree = 0;
             isInterrupted = 0;
 
             runningProcessPCBPtr = dequeuePCB(processQueue);
             // printf("Entering ID : %d, Running Process is NULL ? %s\n", runningProcessPCBPtr->id, runningProcessPCBPtr == NULL ? "YES" : "NO");
+            // printf("Dequeued process with ID: %d \n", runningProcessPCBPtr->id); // yes
 
             if (runningProcessPCBPtr->p_state == p_ready && runningProcessPCBPtr->pid == -1)
             {
                 // first entry
+                // printf("Yippi my first entry\n");
                 runningProcessPCBPtr->start_time = currentTime;
                 pid_t pid = fork();
 
@@ -416,16 +439,19 @@ void schedulerLoop()
                     sprintf(semSchedulerTurnStr, "%d", semSchedulerTurn);
 
                     execl("./processRR.out", "processRR.out", sharedMemIDStr, semProcessTurnStr, semSchedulerTurnStr, NULL);
-                    perror("execl failed");
+                    perror("this execl failed");
                     exit(-1);
                 }
                 else if (pid > 0)
                 {
                     // parent
+                    // printf("I AM HERE Parent!\n");
+
                     runningProcessPCBPtr->pid = pid;
                     kill(runningProcessPCBPtr->pid, SIGSTOP);
                     runningProcessPCBPtr->PT_index = putForFirstTime(ramArray, runningProcessPCBPtr->limit,
                                                                      runningProcessPCBPtr->id, runningProcessPCBPtr->base, getClk());
+                    // printf("I AM HERE Escaped Parent!\n");
                 }
             }
             else if (runningProcessPCBPtr->pid > 0)
@@ -435,6 +461,7 @@ void schedulerLoop()
                 // kill(runningProcessPCBPtr->pid, SIGCONT);
             }
 
+            // printf("phew i survived that shit\n");
             lastProcessStartTime = currentTime;
 
             // Print started or resumed
@@ -456,6 +483,13 @@ void schedulerLoop()
     CPUEndTime = getClk();
     dotPerfPrint();
     // printf("|##########################|-> Exited schedulerLoop\n");
+    /*
+    printf("\n\n#for some mysteries reasons i am out of the main loop and here are my values\n");
+    printf("#isProcessGeneratorDone = %d\n", isProcessGeneratorDone);
+    printf("#processQueue->size = %d\n", processQueue->size);
+    printf("#blockedQueue->size > 0 = %d\n", blockedQueue->size > 0);
+    printf("#runningProcessPCBPtr != NULL = %d\n", runningProcessPCBPtr != NULL);
+    */
 }
 
 void sigchldHandler(int signum)
@@ -642,4 +676,5 @@ void dotPerfPrint()
 void timeToEnd(int signum)
 {
     isProcessGeneratorDone = 1;
+    // printf("#\tI got that mr process generator\n");
 }
