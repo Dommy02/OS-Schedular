@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
             // printf("ID : %d, Remaining Time : %d, Elapsed Time : %d, Current Time : %d\n", sharedMemPCBPtr->id, sharedMemPCBPtr->remaining_time, elapsed, currentTime);
             sharedMemPCBPtr->remaining_time -= elapsedTime; // (SHOULD UPDATE) (NOT DONE) : check that this should always be 1 or can be greater than that
             sharedMemPCBPtr->relative_time = currentTime;   // check here as well if it's only a +1
-
+            printf("I am process %d at T = %d and my remaining time now is %d\n",sharedMemPCBPtr->id,getClk(),sharedMemPCBPtr->remaining_time);
             // TODO read from requests file and kill siguser2 to parent after populating the shared mem ptr
             if (fgets(line, sizeof(line), requestsFile) != NULL)
             {
@@ -93,6 +93,7 @@ int main(int argc, char *argv[])
 
                     kill(getppid(), SIGUSR2);
                     raise(SIGSTOP);
+                    printf("I am process %d at T = %d and my remaining time now is %d\n",sharedMemPCBPtr->id,getClk(),sharedMemPCBPtr->remaining_time);
                 }
                 else
                 {
