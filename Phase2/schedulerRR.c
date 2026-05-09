@@ -282,6 +282,7 @@ void readAddressInRam(int signum)
             //
             runningProcessPCBPtr = NULL;
             nextCPUStartTime = getClk() + 2;
+            current_k++;
             up(semSchedulerTurn);
         }
     }
@@ -321,7 +322,7 @@ void schedulerLoop()
 
         ////////////////////////////////////////////////////////////////////////////////////////////////
         //  R reset
-        if (lastTickTime < currentTime && current_k >= K)
+        if (lastTickTime < getClk() && current_k >= K)
         {
             // printf("R reset Block \n");
             current_k = 0;
@@ -330,13 +331,13 @@ void schedulerLoop()
 
         ////////////////////////////////////////////////////////////////////////////////////////////////
         //  Blocked Queue check
-        if ((lastTickTime < currentTime) && blockedQueue->size > 0 && currentTime >= getHeadBlockedTime(blockedQueue))
+        if ((lastTickTime < getClk()) && blockedQueue->size > 0 && getClk() >= getHeadBlockedTime(blockedQueue))
         {
             // printf("Blocked Queue check Block \n");
             PCB *unblockedProcessPCB = dequeuePCB(blockedQueue);
             unblockedProcessPCB->blocked_time = -1;
 
-            printLoading(ramArray->ramArray, currentTime, unblockedProcessPCB->PT_index, unblockedProcessPCB->last_request_hex,
+            printLoading(ramArray->ramArray, getClk(), unblockedProcessPCB->PT_index, unblockedProcessPCB->last_request_hex,
                          unblockedProcessPCB->base, unblockedProcessPCB->id);
 
             unblockedProcessPCB->p_state = p_stopped;
@@ -345,14 +346,14 @@ void schedulerLoop()
 
         ////////////////////////////////////////////////////////////////////////////////////////////////
         //  pre-emptive block
-        if ((lastTickTime < currentTime) && runningProcessPCBPtr != NULL && !(isFree || isInterrupted))
+        if ((lastTickTime < getClk()) && runningProcessPCBPtr != NULL && !(isFree || isInterrupted))
         {
             // printf("pre-emptive block Block \n");
             up(semProcessTurn);
             down(semSchedulerTurn);
         }
 
-        if (!(isFree || isInterrupted) && currentTime - lastProcessStartTime >= quantum)
+        if (!(isFree || isInterrupted) && getClk() - lastProcessStartTime >= quantum)
         {
             // printf("quantum is over Block \n");
             current_k++;
@@ -369,11 +370,11 @@ void schedulerLoop()
 
                 runningProcessPCBPtr = NULL;
                 isInterrupted = 1;
-                nextCPUStartTime = currentTime + 1;
+                nextCPUStartTime = getClk() + 1;
             }
             else
             {
-                lastProcessStartTime = currentTime;
+                lastProcessStartTime = getClk();
             }
         }
 
@@ -387,7 +388,7 @@ void schedulerLoop()
             if (receiveValue != -1)
             {
 
-                // printf("|##########################|-> Process ID : %d, Current Time : %d\n", receivedProcess->id, currentTime);
+                // printf("|##########################|-> Process ID : %d, Current Time : %d\n", receivedProcess->id, getClk());
 
                 PCB *newProcessPCB = makeProcessPCB(receivedProcess);
                 enqueuePCB(processQueue, newProcessPCB);
@@ -400,18 +401,18 @@ void schedulerLoop()
         //
 
         /*
-        if (lastTickTime < currentTime)
+        if (lastTickTime < getClk())
         {
             printf("isFree - %d \n", isFree);
             printf("isInterrupted - %d \n", isInterrupted);
-            printf("currentTime - %d \n", currentTime);
+            printf("getClk() - %d \n", getClk());
             printf("nextCPUStartTime - %d \n", nextCPUStartTime);
             printf("processQueue->size - %d \n", processQueue->size);
         }
         */
         ////////////////////////////////////////////////////////////////////////////////////////////////
         //  the cpu is free or Interrupted
-        if ((isFree || isInterrupted) && currentTime >= nextCPUStartTime && processQueue->size > 0)
+        if ((isFree || isInterrupted) && getClk() >= nextCPUStartTime && processQueue->size > 0)
         {
 
             // printf("cpu is free or Interrupted Block \n"); // yes
@@ -426,7 +427,7 @@ void schedulerLoop()
             {
                 // first entry
                 // printf("Yippi my first entry\n");
-                runningProcessPCBPtr->start_time = currentTime;
+                runningProcessPCBPtr->start_time = getClk();
                 pid_t pid = fork();
 
                 if (pid == 0)
@@ -463,13 +464,13 @@ void schedulerLoop()
             }
 
             // printf("phew i survived that shit\n");
-            lastProcessStartTime = currentTime;
+            lastProcessStartTime = getClk();
 
             // Print started or resumed
             dotLogPrint(runningProcessPCBPtr);
 
             // (SHOULD UPDATE) (NOT DONE) : i should check if current time is actually == getClk() in this second and should update relative time naming
-            // currentTime = getClk();
+            // getClk() = getClk();
             runningProcessPCBPtr->relative_time = getClk(); // relative start time
             runningProcessPCBPtr->p_state = p_running;
 

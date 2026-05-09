@@ -178,7 +178,7 @@ static int putForFirstTime(Ram *ramObject, int limit, int processID, int base, i
 // IMP3 this is called by the scheduler when a process reads a v address
 // #-# called at the scheduler when a process reads a virtual address from the file // done
 static int modifyData(Ram *ramObject, int PT_index, int v_address, int R_M, int processID, int limit)
-{
+{   printf("entered modify datat by process id %d to access V_add %d \n",processID, v_address >> 4);
     Frame *ram = ramObject->ramArray;
     int v_page = v_address >> 4;
     if (v_page >= limit)
