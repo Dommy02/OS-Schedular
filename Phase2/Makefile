@@ -9,4 +9,4 @@ clean:
 all: clean build
 
 run:
-	./process_generatorRR.out 1 100
+	./process_generatorRR.out 1	100
