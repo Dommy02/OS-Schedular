@@ -98,7 +98,7 @@ At	time	99	process	1	finished	arr	1	total	4	remain	0	wait	94	TA	98	WTA	24.50
 At	time	100	process	3	resumed	arr	1	total	4	remain	1	wait	96
 At	time	101	process	3	finished	arr	1	total	4	remain	0	wait	96	TA	100	WTA	25.00
 At	time	102	process	4	resumed	arr	1	total	4	remain	1	wait	98
-At	time	103	process	4	finished	arr	1	total	4	remain	0	wait	98	TA	102	WTA	25.50
+At	time	103	process	4	stopped	arr	1	total	4	remain	1	wait	99
 At	time	104	process	5	resumed	arr	1	total	4	remain	1	wait	100
 At	time	105	process	5	finished	arr	1	total	4	remain	0	wait	100	TA	104	WTA	26.00
 At	time	106	process	6	resumed	arr	1	total	4	remain	1	wait	102
