@@ -102,13 +102,21 @@ int main(int argc, char *argv[])
         if (lastTickTime < currentTime && wasInterrupted == 0)
         {
             // printf("In child the semSchedulerTurn Before : %d\n", semSchedulerTurn);
-            up(semSchedulerTurn);
+            if (sharedMemPCBPtr->p_isInterrupted)
+            {
+                sharedMemPCBPtr->p_isInterrupted = 0;
+            }
+            else
+            {
+                up(semSchedulerTurn);
+            }
             // printf("In child the semSchedulerTurn After : %d\n", semSchedulerTurn);
         }
 
         lastTickTime = currentTime;
     }
 
+    fclose(requestsFile);
     destroyClk(false);
     shmdt(sharedMemPCBPtr);
 

@@ -28,7 +28,7 @@ PCB *sharedMemPCBPtr;
 PCB *runningProcessPCBPtr;
 
 int isFree = 1;
-int isInterupted = 0;
+int isInterrupted = 0;
 int finishedProcesses = 0;
 int nextCPUStartTime = -1;
 
@@ -270,19 +270,18 @@ void readAddressInRam(int signum)
         {
             // kill sigstop to the process and
             // memcpy(runningProcessPCBPtr,sharedMemPCBPtr, sizeof(PCB));
-            // say is isInterupted = 1
+            // say is isInterrupted = 1
             // runningProcessPCBPtr-> current time + penalty and add runningProcessPCBPtr to blocked queue
             memcpy(runningProcessPCBPtr, sharedMemPCBPtr, sizeof(PCB));
-            kill(runningProcessPCBPtr->pid, SIGSTOP);
-            isInterupted = 1;
+            // kill(runningProcessPCBPtr->pid, SIGSTOP);
+            isInterrupted = 1;
+            runningProcessPCBPtr->p_isInterrupted = 1;
             runningProcessPCBPtr->blocked_time = getClk() + penalty;
-            /* (NOT DONE) maybe done
-                Massive error is here is that the semaphore will not be upped since the process stops mid way
-                and if we add up here then eventually when the process starts again we will have an extra up
-                added a was interrupted in process.c so when there is an interruption we set it to 1
-            */
+
             runningProcessPCBPtr->p_state = p_blocked;
             enqueuePCB(blockedQueue, runningProcessPCBPtr);
+            runningProcessPCBPtr = NULL;
+            up(semSchedulerTurn);
         }
     }
 }
@@ -292,7 +291,7 @@ void schedulerLoop()
 
     runningProcessPCBPtr = NULL;
     isFree = 1;
-    isInterupted = 0;
+    isInterrupted = 0;
     finishedProcesses = 0;
     nextCPUStartTime = -1;
     numberOfReceivedProcesses = 0;
@@ -342,7 +341,7 @@ void schedulerLoop()
 
         ////////////////////////////////////////////////////////////////////////////////////////////////
         //  pre-emptive block
-        if ((lastTickTime < currentTime) && runningProcessPCBPtr != NULL && !(isFree || isInterupted))
+        if ((lastTickTime < currentTime) && runningProcessPCBPtr != NULL && !(isFree || isInterrupted))
         {
             //  this had to be every loop since the critical section isn't every loop
 
@@ -355,7 +354,7 @@ void schedulerLoop()
             // printf("In parent the semSchedulerTurn After : %d\n", semSchedulerTurn);
         }
 
-        if (!(isFree || isInterupted) && currentTime - lastProcessStartTime >= quantum)
+        if (!(isFree || isInterrupted) && currentTime - lastProcessStartTime >= quantum)
         {
             current_k++;
             // should say the old process is stopped and the next if should print the new started process
@@ -370,7 +369,7 @@ void schedulerLoop()
                 enqueuePCB(processQueue, runningProcessPCBPtr);
 
                 runningProcessPCBPtr = NULL;
-                isInterupted = 1;
+                isInterrupted = 1;
                 nextCPUStartTime = currentTime + 1;
             }
             else
@@ -399,11 +398,11 @@ void schedulerLoop()
         //
 
         ////////////////////////////////////////////////////////////////////////////////////////////////
-        //  the cpu is free or interupted
-        if ((isFree || isInterupted) && currentTime >= nextCPUStartTime && processQueue->size > 0)
+        //  the cpu is free or Interrupted
+        if ((isFree || isInterrupted) && currentTime >= nextCPUStartTime && processQueue->size > 0)
         {
             isFree = 0;
-            isInterupted = 0;
+            isInterrupted = 0;
 
             runningProcessPCBPtr = dequeuePCB(processQueue);
             // printf("Entering ID : %d, Running Process is NULL ? %s\n", runningProcessPCBPtr->id, runningProcessPCBPtr == NULL ? "YES" : "NO");
@@ -510,11 +509,14 @@ void sigchldHandler(int signum)
         // printf("Process with ID : %d is Done\n", runningProcessPCBPtr->id);
         enqueueF(wTATQueue, wTAT);
 
+        int temp_p_isInterrupted = runningProcessPCBPtr->p_isInterrupted;
         freeProcess(ramArray, runningProcessPCBPtr->PT_index, runningProcessPCBPtr->limit);
         free(runningProcessPCBPtr);
         runningProcessPCBPtr = NULL;
-
-        up(semSchedulerTurn);
+        if (!temp_p_isInterrupted)
+        {
+            up(semSchedulerTurn);
+        }
 
         //(SHOULD UPDATE) (DONE) : dont forget this when adding back semaphores
     }
@@ -547,6 +549,7 @@ PCB *makeProcessPCB(Process *processPtr)
     newProcessPCB->blocked_time = -1;
     newProcessPCB->last_request_hex = -1;
     newProcessPCB->last_request_state = 'n';
+    newProcessPCB->p_isInterrupted = 0;
     // newProcessPCB->pageTable.pageTableArray = (PT_entry*) malloc(sizeof(PT_entry) * newProcessPCB->limit); // page table is array of like boxes { [V_address : Physical_address and valid bit] [] []  }
     // startPageTab(newProcessPCB->pageTable.pageTableArray, newProcessPCB->limit);
     // end of phase 2

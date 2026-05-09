@@ -20,7 +20,7 @@ typedef enum Process_State
 
 typedef struct PCB
 {
-    pid_t pid;              
+    pid_t pid;
     int id;
     int arrival_time;
     int runtime;
@@ -37,8 +37,10 @@ typedef struct PCB
     // PageTable pageTable;
     int PT_index;
     int blocked_time;     // time to leave when blocked
-    int last_request_hex; // idk what this is this is the virtual memory in hexa
+    int last_request_hex; // idk what this is this is the virtual memory in hex
     char last_request_state;
+    //
+    int p_isInterrupted;
 } PCB;
 
 typedef struct NodePCB
@@ -78,7 +80,7 @@ void enqueuePCB(PCBQueue *q, PCB *ptrProcessPCB);
 PCB *dequeuePCB(PCBQueue *q);
 const int getHeadBlockedTime(PCBQueue *q);
 
-    //////////////////////////////////
+//////////////////////////////////
 fQueue *createFQueue();
 void enqueueF(fQueue *q, float value);
 float dequeueF(fQueue *q);
