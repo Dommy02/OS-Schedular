@@ -317,7 +317,13 @@ void schedulerLoop()
         //  time print
         if (lastTickTime < currentTime)
         {
-            printf("Current Time : %d #\n", currentTime);
+            printf("#####################################################################################################\n");
+            printf("Current Time : %d\n", currentTime);
+            printf("isProcessGeneratorDone: %d\n", isProcessGeneratorDone);
+            printf("processQueue->size: %d\n", processQueue->size);
+            printf("blockedQueue->size: %d\n", blockedQueue->size);
+            printf("runningProcessPCBPtr != NULL: %s\n", runningProcessPCBPtr != NULL ? "TRUE" : "FALSE");
+            printf("#####################################################################################################\n");
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////
