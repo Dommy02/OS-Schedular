@@ -62,6 +62,7 @@ Ram *ramArray;
 int main(int argc, char *argv[])
 {
 
+    printf("Hi i am the scheduler\n");
     ////////////////////////////////////////////////////////////////////////////////////
     // setting clock and signals
     initClk();
@@ -111,7 +112,7 @@ int main(int argc, char *argv[])
     {
         quantum = __INT_MAX__;
     }*/
-
+    printf("scheduler post argv\n");
     ////////////////////////////////////////////////////////////////////////////////////
     // message queue setup
     key_t key = ftok("keyfile", 'a');
@@ -177,6 +178,7 @@ int main(int argc, char *argv[])
     ////////////////////////////////////////////////////////////////////////////////////
     // TODO implement the scheduler :)
     //
+    printf("scheduler before the main loop\n");
     schedulerLoop();
 
     // finalPrint();

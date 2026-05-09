@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
     int N = 0, M = 0, quantum = atoi(argv[1]), K = atoi(argv[2]);
 
     // 3. Initiate and create the scheduler and clock processes.
+    printf("Before initial clock and scheduler\n");
     creatMessageQueue();
     pid_t clk_pid = initiateClk();
     pid_t scheduler_pid = initiateScheduler(number_of_processes, algorithm, N, M, quantum, K);
@@ -42,6 +43,7 @@ int main(int argc, char *argv[])
 
     // TODO Generation Main Loop
 
+    printf("Before the main loop of the process generator\n");
     mainLoop(number_of_processes);
     // 5. Create a data structure for processes and provide it with its parameters.
     // 6. Send the information to the scheduler at the appropriate time.

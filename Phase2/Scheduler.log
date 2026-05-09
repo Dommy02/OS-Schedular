@@ -1,6 +1,0 @@
-At	time	1	process	1	started	arr	1	total	12	remain	12	wait	0
-At	time	3	process	1	stopped	arr	1	total	12	remain	10	wait	0
-At	time	4	process	2	started	arr	1	total	8	remain	8	wait	3
-At	time	6	process	2	stopped	arr	1	total	8	remain	6	wait	3
-At	time	7	process	3	started	arr	1	total	9	remain	9	wait	6
-At	time	9	process	3	stopped	arr	1	total	9	remain	7	wait	6
