@@ -21,6 +21,7 @@ Process *receivedProcess;
 int messageQueueID;
 PCBQueue *processQueue;
 fQueue *wTATQueue;
+// blocked queue to be added IMP
 int sharedMemID;
 PCB *sharedMemPCBPtr;
 PCB *runningProcessPCBPtr;

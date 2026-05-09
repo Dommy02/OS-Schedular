@@ -31,6 +31,7 @@ int main(int argc, char *argv[])
 
     int lastTickTime = -1;
 
+    // IMP2 should read the file address and send it to scheduler
     while (sharedMemPCBPtr->remaining_time > 0)
     {
         // should down the is child done

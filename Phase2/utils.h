@@ -36,6 +36,7 @@ typedef struct PCB
     // PageTable pageTable;
     int PT_index;
     int last_request; //idk what this is 
+    int leave_blocked_time; // time to leave when blocked 
 } PCB;
 
 typedef struct NodePCB
