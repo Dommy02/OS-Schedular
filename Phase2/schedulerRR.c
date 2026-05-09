@@ -53,6 +53,7 @@ int numberOfReceivedProcesses = 0;
 // argc and argv data
 int quantum, N, M, K;
 char algorithm[10];
+int current_k = 0;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // phase 2
@@ -268,18 +269,14 @@ void readAddressInRam(int signum)
         }
         else
         {
-            // kill sigstop to the process and
-            // memcpy(runningProcessPCBPtr,sharedMemPCBPtr, sizeof(PCB));
-            // say is isInterrupted = 1
-            // runningProcessPCBPtr-> current time + penalty and add runningProcessPCBPtr to blocked queue
             memcpy(runningProcessPCBPtr, sharedMemPCBPtr, sizeof(PCB));
-            // kill(runningProcessPCBPtr->pid, SIGSTOP);
             isInterrupted = 1;
             runningProcessPCBPtr->p_isInterrupted = 1;
             runningProcessPCBPtr->blocked_time = getClk() + penalty;
 
             runningProcessPCBPtr->p_state = p_blocked;
             enqueuePCB(blockedQueue, runningProcessPCBPtr);
+            //
             runningProcessPCBPtr = NULL;
             up(semSchedulerTurn);
         }
@@ -331,11 +328,11 @@ void schedulerLoop()
         {
             PCB *unblockedProcessPCB = dequeuePCB(blockedQueue);
             unblockedProcessPCB->blocked_time = -1;
+
             printLoading(ramArray->ramArray, currentTime, unblockedProcessPCB->PT_index, unblockedProcessPCB->last_request_hex,
                          unblockedProcessPCB->base, unblockedProcessPCB->id);
 
             unblockedProcessPCB->p_state = p_stopped;
-
             enqueuePCB(processQueue, unblockedProcessPCB);
         }
 
@@ -343,15 +340,8 @@ void schedulerLoop()
         //  pre-emptive block
         if ((lastTickTime < currentTime) && runningProcessPCBPtr != NULL && !(isFree || isInterrupted))
         {
-            //  this had to be every loop since the critical section isn't every loop
-
-            // printf("In parent the semProcessTurn Before : %d\n", semProcessTurn);
             up(semProcessTurn);
-            // printf("In parent the semProcessTurn After : %d\n", semProcessTurn);
-
-            // printf("In parent the semSchedulerTurn Before : %d\n", semSchedulerTurn);
             down(semSchedulerTurn);
-            // printf("In parent the semSchedulerTurn After : %d\n", semSchedulerTurn);
         }
 
         if (!(isFree || isInterrupted) && currentTime - lastProcessStartTime >= quantum)
@@ -483,6 +473,7 @@ void sigchldHandler(int signum)
             printf("There is an Error with the PCB Pointer\n");
             raise(SIGINT);
         }
+        current_k++;
         memcpy(runningProcessPCBPtr, sharedMemPCBPtr, sizeof(PCB));
 
         runningProcessPCBPtr->p_state = p_finished;
