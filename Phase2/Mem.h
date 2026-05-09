@@ -53,7 +53,7 @@ static Ram *start_Ram()
 // #-# when a process leave the blocked queue to go to ready queue // done
 static void printLoading(Frame *ram, int time, int frameIndex_for_PT, int V_add, int base, int processId)
 { // addressOnDisk = base + V_address from the request
-
+    V_add = V_add >> 4;
     int i = ram[frameIndex_for_PT].pageTable[V_add].phy_page;
     // now i is the frame number;  2 things could happen: 1-function putInFirstTime will make it for V_add[0] so I know the frame number or
     //                                                    2- the blocked function use this function so, it doesn't know the frame number
@@ -196,7 +196,7 @@ static int modifyData(Ram *ramObject, int PT_index, int v_address, int R_M, int 
     if (ram[PT_index].pageTable[v_page].valid)
     {
         putInsideRam(ramObject, &req, ram[PT_index].pageTable[v_page].phy_page, NULL); // penalty = 1
-        return v_page ? 1 : 0;
+        return 0;
     }
     else
     {

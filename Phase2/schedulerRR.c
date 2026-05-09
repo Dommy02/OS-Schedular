@@ -265,7 +265,7 @@ void readAddressInRam(int signum)
         int penalty = modifyData(ramArray, sharedMemPCBPtr->PT_index, sharedMemPCBPtr->last_request_hex, RM,
                                  sharedMemPCBPtr->id, sharedMemPCBPtr->limit);
 
-        if (penalty <= 1)
+        if (penalty == 0)
         {
             // leave the process
             kill(runningProcessPCBPtr->pid, SIGCONT);
@@ -281,6 +281,7 @@ void readAddressInRam(int signum)
             enqueuePCB(blockedQueue, runningProcessPCBPtr);
             //
             runningProcessPCBPtr = NULL;
+            nextCPUStartTime = getClk() + 2;
             up(semSchedulerTurn);
         }
     }
